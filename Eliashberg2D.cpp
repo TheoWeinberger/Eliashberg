@@ -180,11 +180,18 @@ void Eliashberg::SolveEliashberg()
         arma::cx_cube dSigma(_nK, _nK, 2*_n0, arma::fill::zeros); 
         arma::cube dPhi(_nK, _nK, 2*_n0, arma::fill::zeros); 
 
+        //counter for iteration number
+        int counter = 0;
+
+        //boolean to see if it is the first run
+        bool firstRun;
+
         /*Search for self consistency  of the Green's function
         is for when the value of lambda tends to 1. Therefore
         the search ends when lambda = 1*/
         while(abs(lambdaVec(lambdaVec.size() - 1)) < 1.0)
         {
+
             //intialise range of Matsubara frequencies
             arma::vec wMatsu = arma::linspace(-M_PI*(2*n - 1)*t, M_PI*(2*n - 1)*t, 2*n);
             arma::vec vMatsu = arma::linspace(-M_PI*(4*n - 2)*t, M_PI*(4*n - 2)*t, 4*n - 1);
@@ -206,13 +213,13 @@ void Eliashberg::SolveEliashberg()
             arma::cx_cube gInv(_nK, _nK, _nK);
             arma::cx_cube g(_nK, _nK, _nK);
 
-            for(int i = 0; i < _nK; i++)
+            for(int i = 0; i < qX.n_elem; i++)
             {
-                for(int j = 0; j < _nK; j++)
+                for(int j = 0; j < qY.n_elem; j++)
                 {
-                    for(int k = 0; k < _nK; k++)
+                    for(int k = 0; k < wMatsu.n_elem; k++)
                     {
-                        gInv(i,j,k) = (I*wMatsu(i) - (_energy(j,k) - _mu));
+                        gInv(i,j,k) = (I*wMatsu(k) - (_energy(i,j) - _mu));
                     }
                 }
             }
@@ -223,7 +230,7 @@ void Eliashberg::SolveEliashberg()
             arma::cube chiQNu =  _ChiQNu(vMatsu, qX, qY);
 
             //allocate memory for sigma
-            arma::cube sigma(_nK, _nK, 2*_n0, arma::fill::zeros);
+            arma::cx_cube sigma(_nK, _nK, 2*_n0, arma::fill::zeros);
 
             //solve for sigma
             for(int i = 0; i < _maxIter; i++)
@@ -233,18 +240,50 @@ void Eliashberg::SolveEliashberg()
 
                 arma::cx_cube chiQNuComplex = RealToComplex(chiQNu);
 
+                //set firsrRun to true if it is the first run. This signals that the fftw plans should be set
+                if(counter == 0 && i == 0)
+                {
+                    firstRun = true;
+                }
+
                 //Calculate convolution
-                arma::cx_cube sigmaMatsuConv = gSquared*t/(pow(_nK, 2.0))*_MatsuConv(chiQNuComplex, g, 2*n, 4*n - 1) + dSigma;
+                /************************************************************************************************
+                 *  Weird thing with incompatible arrays here, check with Ran
+                 * There may also be an error in the greens function
+                 */
+                arma::cx_cube sigmaMatsuConv = gSquared*t/(pow(_nK, 2.0))*_MatsuConv(chiQNuComplex, g, 2*n, 4*n - 1, firstRun) + dSigma;
 
+                //set firstRun to false for remaining iterations
+                firstRun = false;
 
+                //work out relative erorr in convergence
+                double deltaS = arma::accu(abs(sigmaMatsuConv-sigma));
+                double totalS = arma::accu(abs(sigma));
+                double relErrS = deltaS/totalS;
+
+                //iterate the sigma matrix
+                sigma = _relaxation[relaxIndex]*sigmaMatsuConv + (1 - _relaxation[relaxIndex])*sigma;
+
+                if(_symm == true)
+                {
+
+                    //this needs to be sorted
+
+                }
+
+                if(relErrS < _errSigma)
+                {
+                    break;
+                }
+
+                break;
 
             }
 
-           
-
-
 
         }
+
+        counter++;
 
     }
 
@@ -498,8 +537,6 @@ arma::vec Eliashberg::_calcMu(const double& tInit, const double& tTrial)
 
                 //rather than appending to muVec, create a new vector at the desired length
                 //and add values to this
-
-                std::cout << mu << std::endl;
                 arma::vec newMuVec(counter + 1);
 
                 for(int j = 0; j < counter; j++)
@@ -537,35 +574,40 @@ arma::vec Eliashberg::_calcMu(const double& tInit, const double& tTrial)
  */
 arma::cube Eliashberg::_ChiQNu(const arma::vec& vMatsu, const arma::vec& qX, const arma::vec& qY)
 {
-    arma::cube chiQNu(_nK, _nK, _nK);
+
+    int iMax = qX.n_elem;
+    int jMax = qY.n_elem;
+    int kMax = vMatsu.n_elem;
+
+    arma::cube chiQNu(iMax, jMax, kMax);
 
     double omega0, eta, qHat, a;
 
     //Evaluate the integral of chiQNu at each point
-    for(int i = 0; i < _nK; i++)
+    for(int i = 0; i < iMax; i++)
     {
-        for(int j = 0; j < _nK; j++)
+        for(int j = 0; j < jMax; j++)
         {
-            for(int k = 0; k < _nK; k++)
+            for(int k = 0; k < kMax; k++)
             {
 
-                omega0 = _Omega0(qX[j], qY[k]);
-                eta = _Eta(qX[j], qY[k]);
+                omega0 = _Omega0(qX[i], qY[j]);
+                eta = _Eta(qX[i], qY[j]);
 
                 //qhat value depends on magnetic model
                 if(_magModel == "FM")
                 {
-                    qHat = _QMinus(qX[j], qY[k]);
+                    qHat = _QMinus(qX[i], qY[j]);
                 }
                 else if(_magModel == "AFM")
                 {
-                    qHat = _QPlus(qX[j], qY[k]);
+                    qHat = _QPlus(qX[i], qY[j]);
                 }
 
                 //last term in the integral of the dynamics susceptibility
                 a = eta*(_kSquared + pow(qHat, 2.0));
 
-                chiQNu(i, j, k) = (2*_chi0/M_PI)*_Omega0(qX[j], qY[k])*_ChiInt(omega0, vMatsu[i], a);
+                chiQNu(i, j, k) = (2*_chi0/M_PI)*_Omega0(qX[i], qY[j])*_ChiInt(omega0, vMatsu[k], a);
 
             }
         }
@@ -606,21 +648,93 @@ double Eliashberg::_ChiInt(const double& y, const double& a, const double& b)
  * @param matrixB The second input matrix
  * @param lowindex The low index for the truncation
  * @param highIndex The high index for the truncation
+ * @param firstRun boolean specifying if it is the first
  * @return matrixConv The matrix corresponding to a linear convolution in frequency of A and B
  */
-arma::cube _MatsuConv(const arma::cx_cube& matrixA, const arma::cx_cube& matrixB, const int& lowindex, const int& highIndex)
+arma::cx_cube Eliashberg::_MatsuConv(const arma::cx_cube& matrixA, const arma::cx_cube& matrixB, const int& lowIndex, const int& highIndex, const bool& firstRun)
 {
 
+    //These tempoarary cubes will store the padded data 
+    arma::cx_cube matrixAPadded = matrixA;
+    arma::cx_cube matrixBPadded = matrixB;
+
+    //Apply circular shifts to get frequency centred output
+    matrixAPadded = IfftShift(matrixAPadded, 1);
+    matrixAPadded = IfftShift(matrixAPadded, 2);
+
+    matrixBPadded = IfftShift(matrixBPadded, 1);
+    matrixBPadded = IfftShift(matrixBPadded, 2); 
+
+    //pad matrices
+    matrixAPadded = PadCube(matrixAPadded, matrixB.n_slices - 1, 0.0);
+    matrixBPadded = PadCube(matrixBPadded, matrixA.n_slices - 1, 0.0);
 
 
-    
 
+    //set DFTs if it is the first run
+    if(firstRun == true)
+    {
+        //cube for the planner to use and overwrite
+        arma::cx_cube plannerCube;
+
+        plannerCube.copy_size(matrixAPadded);
+
+        _SetDFTPlans(plannerCube, plannerCube);
+    }
+
+    //apply ffts, multiple and then apply ifft to achieve convolution
+    fftw_execute_dft(_forwardPlan, (double(*)[2])&matrixAPadded(0,0,0), (double(*)[2])&matrixAPadded(0,0,0));
+    fftw_execute_dft(_forwardPlan, (double(*)[2])&matrixBPadded(0,0,0), (double(*)[2])&matrixBPadded(0,0,0));
+
+    arma::cx_cube convolution = matrixAPadded%matrixBPadded;
+
+    fftw_execute_dft(_inversePlan, (double(*)[2])&convolution(0,0,0), (double(*)[2])&convolution(0,0,0));
+
+    //normalise the DFT
+    convolution /= convolution.n_elem;
+
+    //truncate the frequency domain to remain within the cutoff range
+    arma::cx_cube convolutionCrop = convolution.slices(lowIndex, highIndex);
+
+    //reshift matrix
+    convolutionCrop = FftShift(convolutionCrop, 1);
+    convolutionCrop = FftShift(convolutionCrop, 2);
+
+
+    return convolutionCrop; 
+
+}
+
+/**
+ * @brief Function to set DFT plans for the matsubara frequency convolution
+ * 
+ */
+void Eliashberg::_SetDFTPlans(const arma::cx_cube& in, const arma::cx_cube& out)
+{
+
+    _forwardPlan = fftw_plan_dft_3d(in.n_slices, in.n_cols, in.n_rows, (double(*)[2])&in(0,0,0), (double(*)[2])&out(0,0,0), FFTW_FORWARD, FFTW_MEASURE);
+
+    _inversePlan = fftw_plan_dft_3d(in.n_slices, in.n_cols, in.n_rows, (double(*)[2])&in(0,0,0), (double(*)[2])&out(0,0,0), FFTW_BACKWARD, FFTW_MEASURE);
+
+}
+
+/**
+ * @brief Function to delete DFT plans for the matsubara frequency convolution
+ * 
+ */
+void Eliashberg::_DeleteDFTPlans()
+{
+
+    fftw_destroy_plan(_forwardPlan);
+
+    fftw_destroy_plan(_inversePlan);
 
 }
 
 
 int main()
 {
+
     Eliashberg eliashberg;
 
     eliashberg.SolveEliashberg();

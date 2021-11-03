@@ -246,6 +246,37 @@ private:
     double _ChiInt(const double& y, const double& a, const double& b);
 
     /**
+     * @brief This function uses the FFT to calculate a circular convolution between matrix A and B in 
+     * k-space. This is then padded with zeros along the highest dimesnion to get the linear convolution
+     * in frequency. The inputs are thre dimension arrays and the rnage of fequencies and wavevectors
+     * are cetnreed around zero. The output is truncated at the highest dimension from the low index
+     * to the high index
+     * 
+     * @param matrixA The first input matrix
+     * @param matrixB The second input matrix
+     * @param lowindex The low index for the truncation
+     * @param highIndex The high index for the truncation
+     * @param firstRun boolean specifying if it is the first run
+     * @return matrixConv The matrix corresponding to a linear convolution in frequency of A and B
+     */
+    arma::cx_cube _MatsuConv(const arma::cx_cube& matrixA, const arma::cx_cube& matrixB, const int& lowIndex, const int& highIndex, const bool& firstRun);
+
+    /**
+     * @brief Function to set DFT plans for the matsubara frequency convolution
+     * 
+     * @param in The matrix being transformed
+     * @param out The output matrix of the DFT
+     */
+    void _SetDFTPlans(const arma::cx_cube& in, const arma::cx_cube& out);
+
+    /**
+     * @brief Function to delete DFT plans for the matsubara frequency convolution
+     * 
+     */
+    void _DeleteDFTPlans();
+
+
+    /**
      * @brief t: the tight binding hopping matrix element in meV 
      * 
      */
@@ -422,6 +453,19 @@ private:
      */
     int _maxMuIter;
 
+    /**
+     * @brief The plan for forward FFTs in the matsubara convolution function
+     * 
+     */
+    fftw_plan _forwardPlan;
+
+    /**
+     * @brief The plan for inverse FFTs in the matsubara convolution function
+     * 
+     */
+    fftw_plan _inversePlan;
+
+
 
 };
 
@@ -559,84 +603,163 @@ void vecPush(arma::vec& vector, const double& value)
 
 }
 
-arma::cx_cube FftShift(const arma::cx_cube& A, const int& dim)
+arma::cx_cube FftShift(arma::cx_cube& a, const int& dim)
 {
     //get the length of the array in the dimension of the shift
     int length;
+    int nSlices;
 
     //shifted output
-    arma::cx_cube aShift;
-    aShift.copy_size(A);
+    arma::cx_cube shiftA;
+    shiftA.copy_size(a);
+
+    //get real and imaginary parts
+    arma::cube realA = arma::real(a);
+    arma::cube imagA = arma::imag(a);
     
     if(dim == 1)
     {
-        length = A.n_rows;
+        length = a.n_rows;
+        nSlices = a.n_slices;
 
         //get the length of the shift
         int shiftMin = int(floor((double)length/2.0));
-        int shiftMax = int(ceil((double)length/2.0));
 
-        ////////////////////////////////////////////////////
-        // iterate over slices and apply shift to each slice
+        //apply shift to each slice, this is done with lambda functions
+        realA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, shiftMin, 0);});
+        imagA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, shiftMin, 0);});
 
-        /////////////////////////////////////////////////////
-
-
+        arma::cx_cube shiftATemp(realA, imagA);
+        
+        shiftA = shiftATemp;
     }
     else if(dim == 2)
     {
-        length = A.n_cols;
+        length = a.n_cols;
+        nSlices = a.n_slices;
 
         //get the length of the shift
         int shiftMin = int(floor((double)length/2.0));
-        int shiftMax = int(ceil((double)length/2.0));
+
+        //apply shift to each slice, this is done with lambda functions
+        realA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, shiftMin, 1);});
+        imagA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, shiftMin, 1);});
+
+        arma::cx_cube shiftATemp(realA, imagA);
+        
+        shiftA = shiftATemp;
     }
     else if(dim == 3)
     {
-        length = A.n_slices;
+        length = a.n_slices;
 
         //get the length of the shift
-        int shiftMin = int(floor((double)length/2.0));
         int shiftMax = int(ceil((double)length/2.0));
+
+        //get slices to swap
+        arma::cx_cube tempA1 = a.slices(0, shiftMax);
+        arma::cx_cube tempA2 = a.slices(shiftMax + 1, length - 1);
+
+        //create new cube with swapped slices
+        arma::cx_cube shiftATemp =  arma::join_slices(tempA1, tempA2);
+
+        shiftA = shiftATemp;
     }
 
-
-
-
-    return aShift;
+    return shiftA;
 
 }
 
-arma::cx_cube IfftShift(const arma::cx_cube& A, const int& dim)
+arma::cx_cube IfftShift(arma::cx_cube& a, const int& dim)
 {
     //get the length of the array in the dimension of the shift
     int length;
-
+    int nSlices;
 
     //shifted output
-    arma::cx_cube aShift;
-    aShift.copy_size(A);
+    arma::cx_cube shiftA;
+    shiftA.copy_size(a);
 
+    //get real and imaginary parts
+    arma::cube realA = arma::real(a);
+    arma::cube imagA = arma::imag(a);
+    
     if(dim == 1)
     {
-        length = A.n_rows;
+        length = a.n_rows;
+        nSlices = a.n_slices;
+
+        //get the length of the shift
+        int shiftMin = int(floor((double)length/2.0));
+
+        //apply shift to each slice, this is done with lambda functions
+        realA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, -shiftMin, 0);});
+        imagA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, -shiftMin, 0);});
+
+        arma::cx_cube shiftATemp(realA, imagA);
+        
+        shiftA = shiftATemp;
     }
     else if(dim == 2)
     {
-        length = A.n_cols;
+        length = a.n_cols;
+        nSlices = a.n_slices;
+
+        //get the length of the shift
+        int shiftMin = int(floor((double)length/2.0));
+
+        //apply shift to each slice, this is done with lambda functions
+        realA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, -shiftMin, 1);});
+        imagA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, -shiftMin, 1);});
+
+        arma::cx_cube shiftATemp(realA, imagA);
+        
+        shiftA = shiftATemp;
     }
     else if(dim == 3)
     {
-        length = A.n_slices;
+        length = a.n_slices;
+
+        //get the length of the shift
+        //get the length of the shift
+        int shiftMin = int(floor((double)length/2.0));
+
+        //get slices to swap
+        arma::cx_cube tempA1 = a.slices(0, shiftMin);
+        arma::cx_cube tempA2 = a.slices(shiftMin + 1, length - 1);
+
+        //create new cube with swapped slices
+        arma::cx_cube shiftATemp =  arma::join_slices(tempA1, tempA2);
+
+        shiftA = shiftATemp;
     }
 
-    //get the length of the shift
-    int shiftLen = int(floor((double)length/2.0));
+    return shiftA;
+}
 
+/**
+ * @brief Function to pad a cube with slices of of value = val
+ * 
+ * @param a The cube being padded
+ * @param nSlices The 'thickness' of the padding i.e. the number of slices being padded with
+ * @param val The value being padded with
+ * @return paddedA The padded cube
+ */
+arma::cx_cube PadCube(arma::cx_cube& a, const int& nSlices, const double& val)
+{
 
-    return aShift;
+    //create padding
+    arma::cx_cube padding(a.n_rows, a.n_cols, nSlices);
+
+    padding.fill(val);
+
+    arma::cx_cube paddedA =  arma::join_slices(a, padding);
+
+    return paddedA;
+
 
 }
+
 
 /**
  * @brief Construct a complex cube out of the real inptu data
