@@ -232,6 +232,9 @@ void Eliashberg::SolveEliashberg()
             //allocate memory for sigma
             arma::cx_cube sigma(_nK, _nK, 2*_n0, arma::fill::zeros);
 
+            //double to store the relative error in the convergence in sigma
+            double relErrS;
+
             //solve for sigma
             for(int i = 0; i < _maxIter; i++)
             {
@@ -259,16 +262,17 @@ void Eliashberg::SolveEliashberg()
                 //work out relative erorr in convergence
                 double deltaS = arma::accu(abs(sigmaMatsuConv-sigma));
                 double totalS = arma::accu(abs(sigma));
-                double relErrS = deltaS/totalS;
+                relErrS = deltaS/totalS;
 
                 //iterate the sigma matrix
                 sigma = _relaxation[relaxIndex]*sigmaMatsuConv + (1 - _relaxation[relaxIndex])*sigma;
 
+                /*sigma should be symmetric in rows and columns (i.e. within the slices)
+                make sure that this is the case as it can vary a bit over time due to 
+                floating point/rounding errors*/
                 if(_symm == true)
                 {
-
-                    //this needs to be sorted
-
+                    sigma = symmetrize(sigma);
                 }
 
                 if(relErrS < _errSigma)
@@ -276,9 +280,33 @@ void Eliashberg::SolveEliashberg()
                     break;
                 }
 
-                break;
+            }
+
+            break;
+
+
+            //this does not seem to make sense and I think it should send the loop back to the beginning already
+            //i.e.. a break should be inserted in the else statement
+            if(relErrS > _errSigma)
+            {
+
+                //exit failure if no convergence can be achieved
+                if (relaxIndex == _relaxation.size() - 1)
+                {
+                    std::cout << "No convergent relaxation weight could be found within the array of relaxation values. Please provide a larger maxIter, a finer mesh of relxation weights, or a larger relative error tolerance to achieve convergence" << std::endl;
+                    exit(1);
+                }
+                else
+                {
+
+                    relaxIndexAccepted = false;
+                    relaxIndex += 1;
+
+                }
 
             }
+
+
 
 
         }

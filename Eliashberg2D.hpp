@@ -783,4 +783,53 @@ arma::cx_cube RealToComplex(const arma::cube& in)
 
 }
 
+/**
+ * @brief Function to symmetrise a complex cube
+ * 
+ * @param in the complex cube to be symmetrised
+ * @return out the symmetrised cube
+ */
+arma::cx_cube symmetrize(arma::cx_cube& in)
+{
+
+    //create cube to be tranposed
+    arma::cx_cube transposeIn;
+
+    transposeIn.copy_size(in);
+
+    //tranpose each slice within the cube
+    transposeIn.each_slice([](arma::cx_mat& tempA){tempA = tempA.t();});
+
+    //calculate the symmetrised cube
+    arma::cx_cube out = (in + transposeIn)/2;
+
+    return out;
+
+}
+
+
+/**
+ * @brief Function to symmetrise a cube
+ * 
+ * @param in the complex cube to be symmetrised
+ * @return out the symmetrised cube
+ */
+arma::cube symmetrize(arma::cube& in)
+{
+
+    //create cube to be tranposed
+    arma::cube transposeIn;
+
+    transposeIn.copy_size(in);
+
+    //tranpose each slice within the cube
+    transposeIn.each_slice([](arma::mat& tempA){tempA = tempA.t();});
+
+    //calculate the symmetrised cube
+    arma::cube out = (in + transposeIn)/2;
+
+    return out;
+
+}
+
 #endif
