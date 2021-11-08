@@ -574,7 +574,7 @@ void Eliashberg::SolveEliashberg()
             //extract the critical temperature
             tC(a, b) = tInterp(indexTC);
         }      
-    }
+    } 
 
     //output the critical temperature
     std::cout << "Tc: " << std::endl;

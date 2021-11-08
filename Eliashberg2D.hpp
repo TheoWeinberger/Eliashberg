@@ -1035,75 +1035,6 @@ arma::cx_cube FlipLRCube(arma::cx_cube& in)
 }
 
 /**
- * @brief 3D linear interpolation for a cube object
- * 
- * @param x original x coordinates
- * @param y original y coordinates
- * @param z original z coordinates
- * @param in input gridded cube
- * @param xi x coordinates for interpolation
- * @param yi y coorindates for interpolation
- * @param zi z coordaintes for interpolation
- * @return interp the interpolated input matrix
- */
-arma::cube Interpolate3D(const arma::vec& x, const arma::vec& y, const arma::vec& z, const arma::cube& in, const arma::vec& xi, const arma::vec& yi, const arma::vec zi)
-{
-    //set interpolated cube
-    //temporary cube for in plane interpolation
-    arma::cube interpTemp(xi.size(), yi.size(), z.size());
-    //final interpolation
-    arma::cube interp(xi.size(), yi.size(), zi.size());
-
-    //only interpolate if necessary
-    if(accu(abs(x - xi)) == 0 && accu(abs(y - yi)) == 0)
-    {
-        interpTemp = in;
-    }
-    else
-    {
-        //interpolate in the x-y plane
-        for(unsigned int i = 0; i < z.size(); i++)
-        {
-            arma::interp2(x, y, in.slice(i), xi, yi, interpTemp.slice(i));
-        }
-
-    }
-
-    //interpolate across z axis
-    for(unsigned int i = 0; i < xi.size(); i++)
-    {
-        for(unsigned int j = 0; j < yi.size(); j++)
-        {
-
-            arma::vec initData = interpTemp.tube(i,j);
-
-            //holder for interpolated data
-            arma::vec interpData;
-
-            //interpolate data
-            arma::interp1(z, initData, zi, interpData);
-
-            //linear extrapolation if the data is outside region
-            /************************************
-             * 
-             * This needs to be made better so it actually catches all cases
-             * 
-             * ***********************************/
-            if(interpData.has_nan() == true)
-            {
-                interpData[0] = 2.0*interpData[1] - interpData[2];
-                interpData[interpData.size() - 1] = 2.0*interpData[interpData.size() - 2] - interpData[interpData.size() - 3];
-            }
-
-            interp.tube(i,j) = interpData;
-        }
-    }
-
-    return interp;
-
-}
-
-/**
  * @brief A method to convert an armadillo vector to an alglib
  * 
  * @param vector A vector containing data to be transferrred
@@ -1153,6 +1084,7 @@ arma::vec ConvertToArma(const alglib::real_1d_array& array)
 
 }
 
+
 /**
  * @brief Method to interpolate the lambda v temperature data to help find a better 
  * approximation for Tc. This interpolation function is a general interpolation function
@@ -1165,7 +1097,7 @@ arma::vec ConvertToArma(const alglib::real_1d_array& array)
  * @param vectorCoordsOut output coordinates of the interpolation
  * @param method linear or cubic
  */
-void Interpolate1D(const arma::vec& vectorIn, const arma::vec& vectorCoordsIn, arma::vec& vectorOut, arma::vec& vectorCoordsOut, const std::string& method)
+void Interpolate1D(const arma::vec& vectorIn, const arma::vec& vectorCoordsIn, arma::vec& vectorOut, const arma::vec& vectorCoordsOut, const std::string& method)
 {
 
     if(method == "cubic")
@@ -1188,6 +1120,76 @@ void Interpolate1D(const arma::vec& vectorIn, const arma::vec& vectorCoordsIn, a
         arma::interp1(vectorCoordsIn, vectorIn, vectorCoordsOut, vectorOut);
 
     }
+
+}
+
+/**
+ * @brief 3D linear interpolation for a cube object
+ * 
+ * @param x original x coordinates
+ * @param y original y coordinates
+ * @param z original z coordinates
+ * @param in input gridded cube
+ * @param xi x coordinates for interpolation
+ * @param yi y coorindates for interpolation
+ * @param zi z coordaintes for interpolation
+ * @return interp the interpolated input matrix
+ */
+arma::cube Interpolate3D(const arma::vec& x, const arma::vec& y, const arma::vec& z, const arma::cube& in, const arma::vec& xi, const arma::vec& yi, const arma::vec& zi)
+{
+    //set interpolated cube
+    //temporary cube for in plane interpolation
+    arma::cube interpTemp(xi.size(), yi.size(), z.size());
+    //final interpolation
+    arma::cube interp(xi.size(), yi.size(), zi.size());
+
+    //only interpolate if necessary
+    if(accu(abs(x - xi)) == 0 && accu(abs(y - yi)) == 0)
+    {
+        interpTemp = in;
+    }
+    else
+    {
+        //interpolate in the x-y plane
+        for(unsigned int i = 0; i < z.size(); i++)
+        {
+            arma::interp2(x, y, in.slice(i), xi, yi, interpTemp.slice(i));
+        }
+
+    }
+
+    //interpolate across z axis
+    for(unsigned int i = 0; i < xi.size(); i++)
+    {
+        for(unsigned int j = 0; j < yi.size(); j++)
+        {
+
+            arma::vec initData = interpTemp.tube(i,j);
+
+            //holder for interpolated data
+            arma::vec interpData;
+
+            //interpolate data
+            //arma::interp1(z, initData, zi, interpData);
+            Interpolate1D(initData, z, interpData, zi, "cubic");
+
+            //linear extrapolation if the data is outside region
+            /************************************
+             * 
+             * This needs to be made better so it actually catches all cases
+             * 
+             * ***********************************/
+            if(interpData.has_nan() == true)
+            {
+                interpData[0] = 2.0*interpData[1] - interpData[2];
+                interpData[interpData.size() - 1] = 2.0*interpData[interpData.size() - 2] - interpData[interpData.size() - 3];
+            }
+
+            interp.tube(i,j) = interpData;
+        }
+    }
+
+    return interp;
 
 }
 
