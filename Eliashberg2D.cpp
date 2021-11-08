@@ -104,7 +104,7 @@ Eliashberg::Eliashberg()
     _doping = 1.1;
 
     //sampling
-    _gSquaredChi0tSample = {80.0};
+    _gSquaredChi0tSample = {80.0, 81.0, 82.0};
     _k0Squared = 12.0;
     _kSquaredSample = {1.0}; 
 
@@ -118,7 +118,7 @@ Eliashberg::Eliashberg()
     _maxMuIter = 1000;
 
     //bools and vars controlling simulations
-    _magModel = "FM";
+    _magModel = "AFM";
     _phiModel = "p";
     _plot = "g";
 
@@ -136,6 +136,21 @@ void Eliashberg::SolveEliashberg()
     int lenKSample = _kSquaredSample.size();
     int lenGSample = _gSquaredChi0tSample.size();
 
+    //check sampling is properly set up
+    if(lenKSample > 1 && _plot != "k")
+    {
+        std::cout << "Data structure is not formatted for plotting in k space, please check the k sampling matrix and the plotting settings" << std::endl;
+        std::cout << "To plot Tc as a function of k, _plot should be set to k and the k sampling array should have multiple values" << std::endl;
+        exit(1);
+    }
+
+    if(lenKSample > 1 && _plot != "k")
+    {
+        std::cout << "Data structure is not formatted for plotting in g space, please check the g sampling matrix and the plotting settings" << std::endl;
+        std::cout << "To plot Tc as a function of g, _plot should be set to g and the g sampling array should have multiple values" << std::endl;
+        exit(1);
+    }
+
     //temperature arrays
     arma::mat tC(lenKSample, lenGSample, arma::fill::zeros);
     /*********************************/
@@ -152,6 +167,11 @@ void Eliashberg::SolveEliashberg()
     {
         for(int b = 0; b < lenGSample; b++)
         {
+            
+            //user information
+            std::cout << "Initialising run with parameters" << std::endl;
+            std::cout << "g: " << _gSquaredChi0tSample[b] << std::endl;
+            std::cout << "k: " << _kSquaredSample[a] << std::endl;
 
             //initialise energy
             _energy = _Dispersion(qX, qY);
@@ -573,14 +593,78 @@ void Eliashberg::SolveEliashberg()
 
             //extract the critical temperature
             tC(a, b) = tInterp(indexTC);
+            //output the critical temperature
+            std::cout << "    " << std::endl;
+            std::cout << "Tc: "<< tC(a,b) << std::endl;
+            std::cout << "Tc/Tsf: " << tC(a,b)/_tSF << std::endl;
+            std::cout << "    " << std::endl;
+
         }      
     } 
 
-    //output the critical temperature
-    std::cout << "Tc: " << std::endl;
-    tC.print();
-    std::cout << "Tc/Tsf: " << std::endl;
-    (tC/_tSF).print();
+    //output k/g data if relevant
+    if(lenKSample > 1)
+    {
+        std::cout << "k: " << std::endl;
+        _kSquaredSample.t().print();
+
+        //output all the critical temperature
+        std::cout << "Tc: " << std::endl;
+        tC.t().print();
+        std::cout << "Tc/Tsf: " << std::endl;
+        (tC/_tSF).t().print();
+    }
+
+    if(lenGSample > 1)
+    {
+        std::cout << "g: " << std::endl;
+        _gSquaredChi0tSample.t().print();
+
+        //output all the critical temperature
+        std::cout << "Tc: " << std::endl;
+        tC.print();
+        std::cout << "Tc/Tsf: " << std::endl;
+        (tC/_tSF).print();
+    }
+
+
+
+    //output data to csv file for plotting
+    //plotting as a function of gSquared
+    if(_plot == "g")
+    {
+        arma::mat outputData(lenGSample, 2);   
+
+        for(int i = 0; i < lenGSample; i++)
+        {
+
+            outputData(i, 0) = _gSquaredChi0tSample[i];
+            outputData(i, 1) = tC[i]/_tSF;
+            
+        }
+
+        outputData.save("gData", arma::csv_ascii);
+    }
+    //plot as a function of kappa
+    else if(_plot == "k")
+    {
+        arma::mat outputData(lenKSample, 2);   
+
+        for(int i = 0; i < lenKSample; i++)
+        {
+
+            outputData(i, 0) = _kSquaredSample[i];
+            outputData(i, 1) = tC[i]/_tSF;
+            
+        }
+
+        outputData.save("kData", arma::csv_ascii);
+    }
+    else
+    {
+        std::cout << "Incorrect plotting values, please set plot to either g or k" << std::endl;
+        exit(1);
+    }
 }
 
 
