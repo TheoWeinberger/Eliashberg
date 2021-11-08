@@ -1,6 +1,6 @@
 CC=g++
 CXXFLAGS=-O2 -Wall -Wextra -fopenmp
-LIBS=-larmadillo -llapack -lblas -lfftw3 -lconfig++ -lgsl -lgslcblas
+LIBS=-larmadillo -llapack -lblas -lfftw3 -lconfig++ -lgsl -lgslcblas -lalglib
 DEPS = Eliashberg2D.hpp 
 OBJ = Eliashberg2D.o
 

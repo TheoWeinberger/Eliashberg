@@ -70,6 +70,9 @@
 #include <gsl/gsl_roots.h>
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_errno.h>
+#include <libalglib/interpolation.h>
+#include <stdio.h> 
+#include <math.h>
 #include "Eliashberg2D.hpp"
 
 
@@ -101,22 +104,22 @@ Eliashberg::Eliashberg()
     _doping = 1.1;
 
     //sampling
-    _gSquaredChi0tSample = 80.0;
+    _gSquaredChi0tSample = {80.0};
     _k0Squared = 12.0;
-    _kSquaredSample = 1.0; 
+    _kSquaredSample = {1.0}; 
 
     //convergence control values
-    _errSigma = 1e-10;
-    _errLambda = 1e-15;
+    _errSigma = 1e-5;
+    _errLambda = 1e-5;
     _maxIter = 3000; 
-    _relaxation = {0.1, 0.2, 0.5};
+    _relaxation = {0.1, 0.2, 0.5, 1.0};
     _phiRatio = 1e8;
     _symm = true;
     _maxMuIter = 1000;
 
     //bools and vars controlling simulations
     _magModel = "FM";
-    _phiModel = "d";
+    _phiModel = "p";
     _plot = "g";
 
 }
@@ -130,202 +133,454 @@ void Eliashberg::SolveEliashberg()
     arma::vec qX = arma::linspace(-M_PI/_a*(1.0-1.0/_nK), M_PI/_a*(1.0-1.0/_nK), _nK);
     arma::vec qY = qX;
 
-    _energy = _Dispersion(qX, qY);
+    int lenKSample = _kSquaredSample.size();
+    int lenGSample = _gSquaredChi0tSample.size();
 
-    //initialise parameters for search
-    double tC = 0.0;
-    _kSquared = _kSquaredSample;
-    double gSquaredChi0t = _gSquaredChi0tSample;
-    double gSquared = gSquaredChi0t*_t/_chi0;
+    //temperature arrays
+    arma::mat tC(lenKSample, lenGSample, arma::fill::zeros);
+    /*********************************/
+    arma::mat tInit(lenKSample, lenGSample, arma::fill::zeros); //does this get used
+    /**********************************/
 
-    double coupling; //coupling
+    //calculate the array containing the chemical potential
+    arma::vec muArray = _calcMu(_t0); //note 0 is picked as an initial trial value out of convenience
 
-    if(_magModel == "FM")
+    //direct test against Ran code
+    //muArray = {1.351850567693204e+03, 6.765567525297223e+02, 3.405198980389718e+02, 1.765050769606098e+02, 1.033043515584506e+02, 86.539442523009030, 1.030800627209959e+02, 1.274838994943234e+02, 1.452422053806421e+02, 1.541559644533966e+02, 1.582541906946000e+02, 1.596428565534779e+02, 1.604206942145785e+02};
+
+    for(int a = 0; a < lenKSample; a++)
     {
-        _qHat = _QMinus(qX, qY);
-        coupling = gSquared/3;
-    }
-    else if(_magModel == "AFM")
-    {
-        _qHat = _QPlus(qX, qY);
-        coupling = -gSquared;
-    }
-
-    /*initialise the relaxation weight index
-    The relaxation weight smooths the transition between 
-    steps to allow for more stable convergence to self-consistency*/
-    unsigned int relaxIndex = 0;
-
-    while(relaxIndex < _relaxation.size())
-    {
-        bool relaxIndexAccepted = true;
-        /*the critical temperture Tc is defined where lambda = 1
-        start the search for self consistent solutions where this holds*/
-        double t = _t0;
-        double n = _n0;
-
-        //calculate the array containing the chemical potential
-        arma::vec muArray = _calcMu(t, 0); //note 0 is picked as an initial trial value out of convenience
-
-        /*Vectors containing the lambda values and temperature steps
-        these start off as being unit length and are appended to each 
-        iterations. Note the appending operation is highly inefficient 
-        and so should be altered in later code*/
-        arma::vec tStep;
-        arma::vec lambdaVec(1, arma::fill::zeros);
-
-        unsigned int muIndex = 0;
-
-        //initialise the RG corrections 
-        arma::cx_cube dSigma(_nK, _nK, 2*_n0, arma::fill::zeros); 
-        arma::cube dPhi(_nK, _nK, 2*_n0, arma::fill::zeros); 
-
-        //counter for iteration number
-        int counter = 0;
-
-        //boolean to see if it is the first run
-        bool firstRun;
-
-        /*Search for self consistency  of the Green's function
-        is for when the value of lambda tends to 1. Therefore
-        the search ends when lambda = 1*/
-        while(abs(lambdaVec(lambdaVec.size() - 1)) < 1.0)
+        for(int b = 0; b < lenGSample; b++)
         {
 
-            //intialise range of Matsubara frequencies
-            arma::vec wMatsu = arma::linspace(-M_PI*(2*n - 1)*t, M_PI*(2*n - 1)*t, 2*n);
-            arma::vec vMatsu = arma::linspace(-M_PI*(4*n - 2)*t, M_PI*(4*n - 2)*t, 4*n - 1);
+            //initialise energy
+            _energy = _Dispersion(qX, qY);
 
-            /* If the temperature, t, has droppped below the solvable region
-            then use the most recent value for mu. This is because mu will converge
-            as t tends to 0 and so the most recent value can be used as an approximate
-            value for the real mu*/
-            if(muIndex > muArray.size() - 1)
+
+            //initialise parameters for search
+            _kSquared = _kSquaredSample[a];
+            double gSquaredChi0t = _gSquaredChi0tSample[b];
+            double gSquared = gSquaredChi0t*_t/_chi0;
+
+            double coupling; //coupling
+
+            if(_magModel == "FM")
             {
-                _mu = muArray(muArray.size() - 1);
+                _qHat = _QMinus(qX, qY);
+                coupling = gSquared/3;
+            }
+            else if(_magModel == "AFM")
+            {
+                _qHat = _QPlus(qX, qY);
+                coupling = -gSquared;
             }
             else
             {
-                _mu = muArray(muIndex);
+                std::cout << "Invalid value of the magnetic model" << std::endl;
+                std::cout << "Please enter either FM or AFM" << std::endl;
+                exit(1);
             }
 
-            //Intialise G
-            arma::cx_cube gInv(_nK, _nK, _nK);
-            arma::cx_cube g(_nK, _nK, _nK);
+            /*initialise the relaxation weight index
+            The relaxation weight smooths the transition between 
+            steps to allow for more stable convergence to self-consistency*/
+            unsigned int relaxIndex = 0;
 
-            for(int i = 0; i < qX.n_elem; i++)
+            /*Vectors containing the lambda values and temperature steps
+            these start off as being unit length and are appended to each 
+            iterations. Note the appending operation is highly inefficient 
+            and so should be altered in later code*/
+            arma::vec tStep(1);
+            arma::vec lambdaVec(1);
+
+            //doubles for temperature and sampling number
+            double t = _t0;
+            double n = _n0;
+
+            while(relaxIndex < _relaxation.size())
             {
-                for(int j = 0; j < qY.n_elem; j++)
+
+                //set size of tStep and lambdaVec to 1
+                tStep.set_size(1);
+                lambdaVec.set_size(1);
+
+                bool relaxIndexAccepted = true;
+                /*the critical temperture Tc is defined where lambda = 1
+                start the search for self consistent solutions where this holds*/
+                t = _t0;
+                n = _n0;
+
+                unsigned int muIndex = 0;
+
+                //allocate memory for sigma and phi
+                arma::cx_cube sigma(_nK, _nK, 2*_n0, arma::fill::zeros);
+                arma::cube phi(_nK, _nK, 2*_n0);
+                arma::cube phiFilter(_nK, _nK, 2*_n0);
+
+                //initialise the RG corrections 
+                arma::cx_cube dSigma(_nK, _nK, 2*_n0, arma::fill::zeros); 
+                arma::cube dPhi(_nK, _nK, 2*_n0, arma::fill::zeros); 
+
+                //counter for iteration number
+                int counter = 0;
+
+                //boolean to see if it is the first run
+                bool firstRun;
+
+                //boolean to state whether regular matsubara convolution is occuring or the RG corrections
+                bool rg = false;
+
+                /*Search for self consistency  of the Green's function
+                is for when the value of lambda tends to 1. Therefore
+                the search ends when lambda = 1*/
+                while(abs(lambdaVec(lambdaVec.size() - 1)) < 1.0)
                 {
-                    for(int k = 0; k < wMatsu.n_elem; k++)
+
+                    //reset all cubes to be filled with 0
+                    sigma.zeros();
+                    phi.zeros();
+                    phiFilter.zeros();
+
+                    //intialise range of Matsubara frequencies
+                    arma::vec wMatsu = arma::linspace(-M_PI*(2*n - 1)*t, M_PI*(2*n - 1)*t, 2*n);
+                    arma::vec vMatsu = arma::linspace(-M_PI*(4*n - 2)*t, M_PI*(4*n - 2)*t, 4*n - 1);
+
+                    /* If the temperature, t, has droppped below the solvable region
+                    then use the most recent value for mu. This is because mu will converge
+                    as t tends to 0 and so the most recent value can be used as an approximate
+                    value for the real mu*/
+                    if(muIndex > muArray.size() - 1)
                     {
-                        gInv(i,j,k) = (I*wMatsu(k) - (_energy(i,j) - _mu));
+                        _mu = muArray(muArray.size() - 1);
                     }
+                    else
+                    {
+                        _mu = muArray(muIndex);
+                    }
+
+                    //Intialise G
+                    arma::cx_cube gInv(_nK, _nK, _nK);
+                    arma::cx_cube g(_nK, _nK, _nK);
+
+                    for(unsigned int i = 0; i < qX.n_elem; i++)
+                    {
+                        for(unsigned int j = 0; j < qY.n_elem; j++)
+                        {
+                            for(unsigned int k = 0; k < wMatsu.n_elem; k++)
+                            {
+                                gInv(i,j,k) = (I*wMatsu(k) - (_energy(i,j) - _mu));
+                            }
+                        }
+                    }
+
+                    g = 1/gInv;
+
+                    //Calculate chinu data, this corresponds to the analystical intergral of the dynamical suscpetibility
+                    arma::cube chiQNu =  _ChiQNu(vMatsu, qX, qY);
+                    arma::cx_cube chiQNuComplex = RealToComplex(chiQNu);
+
+                    //double to store the relative error in the convergence in sigma
+                    double relErrS = INFINITY;
+
+                    //solve for sigma
+                    for(int i = 0; i < _maxIter; i++)
+                    {
+                        //evaluate new Greens function
+                        g = 1/(gInv - sigma);
+
+                        //set firsrRun to true if it is the first run. This signals that the fftw plans should be set
+                        if(counter == 0 && i == 0)
+                        {
+                            firstRun = true;
+                        }
+
+                        //Calculate convolution
+                        /************************************************************************************************
+                         *  Weird thing with incompatible arrays here, check with Ran
+                         * There may also be an error in the greens function
+                         */
+                        arma::cx_cube sigmaMatsuConv = gSquared*t/(pow(_nK, 2.0))*_MatsuConv(chiQNuComplex, g, 2*n, 4*n - 1, firstRun, rg) + dSigma;
+
+                        //set firstRun to false for remaining iterations
+                        firstRun = false;
+
+                        //work out relative erorr in convergence
+                        double deltaS = arma::accu(abs(sigmaMatsuConv-sigma));
+                        double totalS = arma::accu(abs(sigma));
+                        relErrS = deltaS/totalS;
+
+                        //iterate the sigma matrix
+                        sigma = _relaxation[relaxIndex]*sigmaMatsuConv + (1 - _relaxation[relaxIndex])*sigma;                     
+                    
+                        /*sigma should be symmetric in rows and columns (i.e. within the slices)
+                        make sure that this is the case as it can vary a bit over time due to 
+                        floating point/rounding errors*/
+                        if(_symm == true)
+                        {
+                            sigma = Symmetrise(sigma);
+                        }               
+
+                        if(relErrS < _errSigma)
+                        {
+                            break;
+                        }
+
+                    }
+                    
+                    /**************************************************************/
+                    //this does not seem to make sense and I think it should send the loop back to the beginning already
+                    //i.e.. a break should be inserted in the else statement
+                    if(relErrS > _errSigma)
+                    {
+
+                        //exit failure if no convergence can be achieved
+                        if (relaxIndex == _relaxation.size() - 1)
+                        {
+                            std::cout << "No convergent relaxation weight could be found within the array of relaxation values. Please provide a larger maxIter, a finer mesh of relxation weights, or a larger relative error tolerance to achieve convergence" << std::endl;
+                            exit(1);
+                        }
+                        else
+                        {
+
+                            relaxIndexAccepted = false;
+                            relaxIndex += 1;
+                            break;
+                        }
+
+                    }
+
+
+                    //find the `eigenvalue' lambda using the power methid
+                    //set the phi depending on the phi model
+                    phi = _PhiFun(qX, qY);
+                    phiFilter = _PhiSymm(qX, qY);
+
+        
+
+                    //clean diagonals
+                    if(_phiModel == "d")
+                    {
+
+                        phi = CleanDiagonal(phi);
+                        phiFilter =  CleanDiagonal(phiFilter);
+
+                    }
+
+                    //scale phi
+                    double scale = abs(dPhi).max();
+
+                    //scale phi if needed
+                    if(scale > 0)
+                    {
+                        phi *= scale*_phiRatio;
+                    }
+
+                    //calcualte <Phi|Phi> , shoudln;t this be a proper inner product???
+                    /*************************************************************/
+                    double phiInner = arma::accu(phi%phi);
+
+                    //get the absolute value of g
+                    arma::cx_cube gAbsSquaredComp = RealToComplex(pow(abs(g), 2.0));
+
+                    //convolve chi wth |G|^2%phi
+                    arma::cx_cube gAbsPhi = gAbsSquaredComp%phi;
+
+                    /********************
+                     * 
+                     * in general phimatsu conv can be imaginary, change this
+                     **********************************/
+                    arma::cube phiMatsuConv = arma::real(coupling*t/pow(_nK, 2.0)*_MatsuConv(chiQNuComplex, gAbsPhi, 2*n, 4*n - 1, firstRun, rg)) + dPhi;
+
+                    //calcilate lambda as <Phi|Phi> = <Phi|A|Phi> = <Phi|Phi1>
+                    double lambda = arma::accu(phi%phiMatsuConv)/phiInner;
+
+                    //apply symmetry transforms
+                    phi = _SymmByFiltLabel(phiMatsuConv, phiFilter);
+
+                    //initialise relative error and normalisation for lambda search
+                    double relErrL = INFINITY;
+                    bool normalise = false;
+
+                    for(int i = 0; i < _maxIter; i++)
+                    {
+
+                        //calcualte <Phi|Phi>
+                        phiInner = arma::accu(phi%phi);
+
+
+                        //convolve chi wth |G|^2%phi
+                        gAbsPhi = gAbsSquaredComp%phi;
+                        phiMatsuConv = arma::real(coupling*t/pow(_nK, 2.0)*_MatsuConv(chiQNuComplex, gAbsPhi, 2*n, 4*n - 1, firstRun, rg)) + dPhi;
+
+                        //calcilate lambda as <Phi|Phi> = <Phi|A|Phi> = <Phi|Phi1>
+                        double lambda1 = arma::accu(abs(phi%phiMatsuConv))/phiInner;
+
+                        //calculate the relative change in lambda
+                        double relErrL1 = abs(lambda1 - lambda)/abs(lambda);
+                        
+                        //check normalisation cases to update lambda
+                        if(normalise == true)
+                        {
+                            relErrL = relErrL1;
+
+                            //iterate to the next step
+                            phi = _SymmByFiltLabel(phiMatsuConv, phiFilter)/lambda1;
+                            lambda = lambda1;
+                        }
+                        else if(relErrL1 > relErrL)
+                        {
+                            //if relative error increases, set to normalise
+                            normalise = true;
+                            phi = phi/lambda;
+                        }
+                        else
+                        {
+                            //unormalised iteration
+                            relErrL = relErrL1;
+                            phi = _SymmByFiltLabel(phiMatsuConv, phiFilter);
+                            lambda = lambda1;
+                        }
+
+                        //break loop if threshold reached
+                        if(relErrL < _errLambda)
+                        {
+                            break;
+                        }
+
+                    }
+
+                    if(relErrL > _errLambda)
+                    {
+                        std::cout << "No convergent wavefunction phi could be found. Please provide a larger maxIter, a larger ratio, or a larger relative error tolerance to achieve convergence" << std::endl;
+                        exit(1);
+                    }
+                    //normalise if not done alread
+                    else if(normalise == false)
+                    {
+                        phi /= lambda;
+                    }
+                    
+                    //rather than appending to lambdaVec, create a new vector at the desired length
+                    //and add values to this
+                    arma::vec newLambdaVec(counter + 1);
+
+                    for(int j = 0; j < counter; j++)
+                    {
+                        newLambdaVec[j] = lambdaVec[j];
+                    }
+
+                    std::cout << "For iteration " << counter << " lambda: " << lambda << std::endl;
+
+                    newLambdaVec[counter] = lambda;
+
+                    lambdaVec = newLambdaVec;  
+
+                    /* Now calculate the RG corrections. Since T is halved at the 
+                    next step we also know the mesh of fermionic frequencies is 
+                    halved too*/
+                    int m = int(ceil(n/2.0));
+
+                    //get the fermionic frequencies in the L domain
+
+                    arma::vec wL = wMatsu.rows((n - m),(n + m - 1));
+
+                    //cut mastubara v frequencies
+                    arma::vec vCut = arma::linspace(-(4*m - 2)*M_PI*t, (4*m - 2)*M_PI*t, 4*m - 1);
+
+                    //Calculate chinu data, this corresponds to the analystical intergral of the dynamical suscpetibility
+                    //this is now calculated in the cut frequency domain
+                    arma::cube chiCut =  _ChiQNu(vCut, qX, qY);
+                    arma::cx_cube chiCutComplex = RealToComplex(chiCut);
+
+                    arma::cx_cube gL = g.slices((n - m),(n + m -1));
+
+                    rg = true;
+
+                    //calculate the contribution to this iteration from L to L domains
+                    arma::cx_cube sigmaLL = gSquared*t/(pow(_nK, 2.0))*_MatsuConv(chiCutComplex, gL, 2*m, 4*m - 1, firstRun, rg);
+
+                    //contribution to sigma from L to H domains
+                    arma::cx_cube sigmaL = sigma.slices((n - m),(n + m -1)); 
+
+                    //holder for dSigma
+                    arma::cube dSigmaReal, dSigmaImag;
+
+                    //set to zero
+                    dPhi.zeros();
+                    dSigma.zeros();
+                    dSigmaImag.zeros();
+                    dSigmaReal.zeros();
+
+
+                    //note I think 3D interpolation is unecessary as it is just along the frequency domain that interpolation occurs
+                    //interpolate real and imaginary parts
+                    dSigmaReal = Interpolate3D(qX, qY, wL, arma::real(sigmaL - sigmaLL), qX, qY, wMatsu/2.0);
+                    dSigmaImag = Interpolate3D(qX, qY, wL, arma::imag(sigmaL - sigmaLL), qX, qY, wMatsu/2.0);
+
+                    //set whole dSigma matrix
+                    dSigma.copy_size(dSigmaReal);
+                    dSigma.set_real(dSigmaReal);
+                    dSigma.set_imag(dSigmaImag);
+
+                    //perform same cutting for phi
+
+                    arma::cube phiL = phi.slices((n - m),(n + m - 1)); 
+
+                    arma::cx_cube gAbsPhiL = RealToComplex(pow(abs(gL), 2.0))%phiL;
+
+                    arma::cube phiLL = arma::real(coupling*t/pow(_nK, 2.0)*_MatsuConv(chiCutComplex, gAbsPhiL, 2*m, 4*m - 1, firstRun, rg));
+
+                    dPhi = Interpolate3D(qX, qY, wL, lambda*phiL - phiLL, qX, qY, wMatsu/2.0);
+
+                    //rather than appending to tStep, create a new vector at the desired length
+                    //and add values to this
+                    arma::vec newTStep(counter + 1);
+
+                    for(int j = 0; j < counter; j++)
+                    {
+                        newTStep[j] = tStep[j];
+                    }
+
+                    newTStep[counter] = t;
+
+                    tStep = newTStep;
+
+                    t /= 2.0;
+
+                    counter++;
                 }
-            }
-
-            g = 1/gInv;
-
-            //Calculate chinu data, this corresponds to the analystical intergral of the dynamical suscpetibility
-            arma::cube chiQNu =  _ChiQNu(vMatsu, qX, qY);
-
-            //allocate memory for sigma
-            arma::cx_cube sigma(_nK, _nK, 2*_n0, arma::fill::zeros);
-
-            //double to store the relative error in the convergence in sigma
-            double relErrS;
-
-            //solve for sigma
-            for(int i = 0; i < _maxIter; i++)
-            {
-                //evaluate new Greens function
-                g = 1/(gInv - sigma);
-
-                arma::cx_cube chiQNuComplex = RealToComplex(chiQNu);
-
-                //set firsrRun to true if it is the first run. This signals that the fftw plans should be set
-                if(counter == 0 && i == 0)
-                {
-                    firstRun = true;
-                }
-
-                //Calculate convolution
-                /************************************************************************************************
-                 *  Weird thing with incompatible arrays here, check with Ran
-                 * There may also be an error in the greens function
-                 */
-                arma::cx_cube sigmaMatsuConv = gSquared*t/(pow(_nK, 2.0))*_MatsuConv(chiQNuComplex, g, 2*n, 4*n - 1, firstRun) + dSigma;
-
-                //set firstRun to false for remaining iterations
-                firstRun = false;
-
-                //work out relative erorr in convergence
-                double deltaS = arma::accu(abs(sigmaMatsuConv-sigma));
-                double totalS = arma::accu(abs(sigma));
-                relErrS = deltaS/totalS;
-
-                //iterate the sigma matrix
-                sigma = _relaxation[relaxIndex]*sigmaMatsuConv + (1 - _relaxation[relaxIndex])*sigma;
-
-                /*sigma should be symmetric in rows and columns (i.e. within the slices)
-                make sure that this is the case as it can vary a bit over time due to 
-                floating point/rounding errors*/
-                if(_symm == true)
-                {
-                    sigma = symmetrize(sigma);
-                }
-
-                if(relErrS < _errSigma)
+                
+                     
+                //break the loop if this relaxation index is suitable
+                if(relaxIndexAccepted == true)
                 {
                     break;
                 }
 
             }
 
-            break;
+            //query points for the temperature
+            arma::vec tInterp = arma::linspace(2*t, 4*t, 1000000);
+            arma::vec lInterp;
+            lInterp.copy_size(tInterp);
+            lInterp.zeros();
 
+            //interpolate the lambda data
+            Interpolate1D(lambdaVec, tStep, lInterp, tInterp, "cubic");
 
-            //this does not seem to make sense and I think it should send the loop back to the beginning already
-            //i.e.. a break should be inserted in the else statement
-            if(relErrS > _errSigma)
-            {
+            //Tc the index where lQuery first goes above 1
+            arma::uword indexTC = (abs(lInterp - 1.0)).index_min();
 
-                //exit failure if no convergence can be achieved
-                if (relaxIndex == _relaxation.size() - 1)
-                {
-                    std::cout << "No convergent relaxation weight could be found within the array of relaxation values. Please provide a larger maxIter, a finer mesh of relxation weights, or a larger relative error tolerance to achieve convergence" << std::endl;
-                    exit(1);
-                }
-                else
-                {
-
-                    relaxIndexAccepted = false;
-                    relaxIndex += 1;
-
-                }
-
-            }
-
-
-
-
-        }
-
-        counter++;
-
+            //extract the critical temperature
+            tC(a, b) = tInterp(indexTC);
+        }      
     }
 
-
-
-
-
-
-
-
-
-
-
-
+    //output the critical temperature
+    std::cout << "Tc: " << std::endl;
+    tC.print();
+    std::cout << "Tc/Tsf: " << std::endl;
+    (tC/_tSF).print();
 }
 
 
@@ -496,10 +751,8 @@ double Eliashberg::_Omega0(const double& qX, const double& qY)
  * @brief Calculate the chemical potential energy by solving the eigenvalue equation
  * 
  * @param tInit The initial solver temperature
- * @param tTrial The trial solver temperature
- * 
  */
-arma::vec Eliashberg::_calcMu(const double& tInit, const double& tTrial)
+arma::vec Eliashberg::_calcMu(const double& tInit)
 {
     //set up equation to solve
     double t = tInit;
@@ -631,6 +884,12 @@ arma::cube Eliashberg::_ChiQNu(const arma::vec& vMatsu, const arma::vec& qX, con
                 {
                     qHat = _QPlus(qX[i], qY[j]);
                 }
+                else
+                {
+                    std::cout << "Invalid value of the magnetic model" << std::endl;
+                    std::cout << "Please enter either FM or AFM" << std::endl;
+                    exit(1);
+                }
 
                 //last term in the integral of the dynamics susceptibility
                 a = eta*(_kSquared + pow(qHat, 2.0));
@@ -677,9 +936,10 @@ double Eliashberg::_ChiInt(const double& y, const double& a, const double& b)
  * @param lowindex The low index for the truncation
  * @param highIndex The high index for the truncation
  * @param firstRun boolean specifying if it is the first
+ * @param boolean specifying if rg corrections are occuring 
  * @return matrixConv The matrix corresponding to a linear convolution in frequency of A and B
  */
-arma::cx_cube Eliashberg::_MatsuConv(const arma::cx_cube& matrixA, const arma::cx_cube& matrixB, const int& lowIndex, const int& highIndex, const bool& firstRun)
+arma::cx_cube Eliashberg::_MatsuConv(const arma::cx_cube& matrixA, const arma::cx_cube& matrixB, const int& lowIndex, const int& highIndex, const bool& firstRun, const bool& rg)
 {
 
     //These tempoarary cubes will store the padded data 
@@ -697,36 +957,60 @@ arma::cx_cube Eliashberg::_MatsuConv(const arma::cx_cube& matrixA, const arma::c
     matrixAPadded = PadCube(matrixAPadded, matrixB.n_slices - 1, 0.0);
     matrixBPadded = PadCube(matrixBPadded, matrixA.n_slices - 1, 0.0);
 
+    arma::cx_cube convolution;
 
-
-    //set DFTs if it is the first run
-    if(firstRun == true)
+    if(rg == true)
     {
+
+
         //cube for the planner to use and overwrite
         arma::cx_cube plannerCube;
 
         plannerCube.copy_size(matrixAPadded);
 
-        _SetDFTPlans(plannerCube, plannerCube);
+        _SetDFTPlansRG(plannerCube, plannerCube);
+
+        //apply ffts, multiple and then apply ifft to achieve convolution
+        fftw_execute_dft(_forwardPlanRG, (double(*)[2])&matrixAPadded(0,0,0), (double(*)[2])&matrixAPadded(0,0,0));
+        fftw_execute_dft(_forwardPlanRG, (double(*)[2])&matrixBPadded(0,0,0), (double(*)[2])&matrixBPadded(0,0,0));
+        
+
+        convolution = matrixAPadded%matrixBPadded;
+
+        fftw_execute_dft(_inversePlanRG, (double(*)[2])&convolution(0,0,0), (double(*)[2])&convolution(0,0,0));
+    }
+    else
+    {
+
+        //set DFTs if it is the first run
+        if(firstRun == true)
+        {
+            //cube for the planner to use and overwrite
+            arma::cx_cube plannerCube;
+
+            plannerCube.copy_size(matrixAPadded);
+
+            _SetDFTPlans(plannerCube, plannerCube);
+        }
+
+        //apply ffts, multiple and then apply ifft to achieve convolution
+        fftw_execute_dft(_forwardPlan, (double(*)[2])&matrixAPadded(0,0,0), (double(*)[2])&matrixAPadded(0,0,0));
+        fftw_execute_dft(_forwardPlan, (double(*)[2])&matrixBPadded(0,0,0), (double(*)[2])&matrixBPadded(0,0,0));
+
+        convolution = matrixAPadded%matrixBPadded;
+
+        fftw_execute_dft(_inversePlan, (double(*)[2])&convolution(0,0,0), (double(*)[2])&convolution(0,0,0));
+
     }
 
-    //apply ffts, multiple and then apply ifft to achieve convolution
-    fftw_execute_dft(_forwardPlan, (double(*)[2])&matrixAPadded(0,0,0), (double(*)[2])&matrixAPadded(0,0,0));
-    fftw_execute_dft(_forwardPlan, (double(*)[2])&matrixBPadded(0,0,0), (double(*)[2])&matrixBPadded(0,0,0));
-
-    arma::cx_cube convolution = matrixAPadded%matrixBPadded;
-
-    fftw_execute_dft(_inversePlan, (double(*)[2])&convolution(0,0,0), (double(*)[2])&convolution(0,0,0));
-
-    //normalise the DFT
     convolution /= convolution.n_elem;
 
     //truncate the frequency domain to remain within the cutoff range
-    arma::cx_cube convolutionCrop = convolution.slices(lowIndex, highIndex);
+    arma::cx_cube convolutionCrop = convolution.slices(lowIndex - 1, highIndex - 1);
 
     //reshift matrix
-    convolutionCrop = FftShift(convolutionCrop, 1);
-    convolutionCrop = FftShift(convolutionCrop, 2);
+    convolutionCrop = IfftShift(convolutionCrop, 1);
+    convolutionCrop = IfftShift(convolutionCrop, 2);
 
 
     return convolutionCrop; 
@@ -736,6 +1020,8 @@ arma::cx_cube Eliashberg::_MatsuConv(const arma::cx_cube& matrixA, const arma::c
 /**
  * @brief Function to set DFT plans for the matsubara frequency convolution
  * 
+ * @param in The matrix being transformed
+ * @param out The output matrix of the DFT
  */
 void Eliashberg::_SetDFTPlans(const arma::cx_cube& in, const arma::cx_cube& out)
 {
@@ -743,6 +1029,21 @@ void Eliashberg::_SetDFTPlans(const arma::cx_cube& in, const arma::cx_cube& out)
     _forwardPlan = fftw_plan_dft_3d(in.n_slices, in.n_cols, in.n_rows, (double(*)[2])&in(0,0,0), (double(*)[2])&out(0,0,0), FFTW_FORWARD, FFTW_MEASURE);
 
     _inversePlan = fftw_plan_dft_3d(in.n_slices, in.n_cols, in.n_rows, (double(*)[2])&in(0,0,0), (double(*)[2])&out(0,0,0), FFTW_BACKWARD, FFTW_MEASURE);
+
+}
+
+/**
+ * @brief Function to set DFT plans for the matsubara frequency convolution
+ * 
+ * @param in The matrix being transformed
+ * @param out The output matrix of the DFT
+ */
+void Eliashberg::_SetDFTPlansRG(const arma::cx_cube& in, const arma::cx_cube& out)
+{
+
+    _forwardPlanRG = fftw_plan_dft_3d(in.n_slices, in.n_cols, in.n_rows, (double(*)[2])&in(0,0,0), (double(*)[2])&out(0,0,0), FFTW_FORWARD, FFTW_ESTIMATE);
+
+    _inversePlanRG = fftw_plan_dft_3d(in.n_slices, in.n_cols, in.n_rows, (double(*)[2])&in(0,0,0), (double(*)[2])&out(0,0,0), FFTW_BACKWARD, FFTW_ESTIMATE);
 
 }
 
@@ -757,7 +1058,190 @@ void Eliashberg::_DeleteDFTPlans()
 
     fftw_destroy_plan(_inversePlan);
 
+    fftw_destroy_plan(_forwardPlanRG);
+
+    fftw_destroy_plan(_inversePlanRG);
+
 }
+
+/**
+ * @brief Calculate the phi function used to iteratively calculate the eigenalue lambda
+ * via the power method
+ * 
+ * @param qX A vector containing the momentum in the x direction
+ * @param qY A vector conaining the momentum in the y direction
+ * @return phi A cube containing the data for phi
+ */
+arma::cube Eliashberg::_PhiFun(const arma::vec& qX, const arma::vec& qY)
+{
+
+    arma::cube phi(_nK, _nK, 2*_n0);
+
+    //case for s wave
+    if(_phiModel == "s")
+    {
+        phi.fill(1.0);
+    }
+    //case for p wave
+    else if(_phiModel == "p")
+    {
+        for(unsigned int i = 0; i < phi.n_slices; i++)
+        {
+            for(unsigned int j = 0; j < phi.n_cols; j++)
+            {
+                for(unsigned int k = 0; k < phi.n_rows; k++)
+                {
+
+                    phi(k, j, i) = sin(qX[k]*_a);
+                    
+                }
+            }
+        }        
+    }
+    //case for d wave
+    else if(_phiModel == "d")
+    {
+
+        for(unsigned int i = 0; i < phi.n_slices; i++)
+        {
+            for(unsigned int j = 0; j < phi.n_cols; j++)
+            {
+                for(unsigned int k = 0; k < phi.n_rows; k++)
+                {
+
+                    phi(k, j, i) = cos(qX[k]*_a) -  cos(qY[j]*_a);
+                    
+                }
+            }
+        }   
+    }
+    //catch errors
+    else
+    {
+        std::cout << "Incorrect input for the orbital model, phiModel." << std::endl;
+        std::cout << "Please choose a value of either s, p, or d." << std::endl;
+        exit(1);
+    }
+
+    return phi;
+
+}
+
+/**
+ * @brief Calculate the symmetric phi function used to iteratively calculate the eigenalue lambda
+ * via the power method
+ * 
+ * @param qX A vector containing the momentum in the x direction
+ * @param qY A vector conaining the momentum in the y direction
+ * @return phi A cube containing the data for symmetric phi
+ */
+arma::cube Eliashberg::_PhiSymm(const arma::vec& qX, const arma::vec& qY)
+{
+
+    arma::cube phi(_nK, _nK, 2*_n0);
+
+    //case for s wave
+    if(_phiModel == "s")
+    {
+        phi.fill(1.0);
+    }
+    //case for p wave
+    else if(_phiModel == "p")
+    {
+        for(unsigned int i = 0; i < phi.n_slices; i++)
+        {
+            for(unsigned int j = 0; j < phi.n_cols; j++)
+            {
+                for(unsigned int k = 0; k < phi.n_rows; k++)
+                {
+
+                    phi(k, j, i) = sgn(qX[k]);
+                    
+                }
+            }
+        }        
+    }
+    //case for d wave
+    else if(_phiModel == "d")
+    {
+
+        for(unsigned int i = 0; i < phi.n_slices; i++)
+        {
+            for(unsigned int j = 0; j < phi.n_cols; j++)
+            {
+                for(unsigned int k = 0; k < phi.n_rows; k++)
+                {
+
+                    phi(k, j, i) = sgn(qX[k] - qY[j])*sgn(qX[k] + qY[j]);
+                    
+                }
+            }
+        }   
+    }
+    //catch errors
+    else
+    {
+        std::cout << "Incorrect input for the orbital model, phiModel." << std::endl;
+        std::cout << "Please choose a value of either s, p, or d." << std::endl;
+        exit(1);
+    }
+
+    return phi;
+
+}
+
+/**
+ * @brief A function to symmetrise a matrix according to its symmetry model (s, p ,d)
+ * and the sign symmetry of the matrix filter. The size of the matrix should be even
+ * in the wavevector dimensions and so the filer is calculated via the _PhiSymm function.
+ * The symmetries are the same as in _PhiFun.
+ * 
+ * @param matrixA The input matrix
+ * @param filter The symmetry filter
+ * @return matrix S The output symmetrised matrix
+ */
+arma::cube Eliashberg::_SymmByFiltLabel(arma::cube& matrixA, const arma::cube& filter)
+{
+
+    //initialise symmetrised matrix
+    arma::cube matrixS;
+
+    //apply symmetry transforms depending on phimodel
+    if(_phiModel == "s")
+    {
+        matrixS = matrixA;
+    }
+    else if(_phiModel == "p")
+    {
+        arma::cube matrixA1 = matrixA%filter;
+        arma::cube matrixA2 = FlipUDCube(matrixA1);
+        matrixS = (matrixA1 + matrixA2)%filter/2.0;
+    }
+    else if(_phiModel == "d")
+    {
+        arma::cube matrixA1 = matrixA%filter;
+        arma::cube matrixA2 = FlipLRCube(matrixA1);
+        arma::cube matrixA3 = FlipUDCube(matrixA1);
+        arma::cube matrixA4 = FlipLRCube(matrixA3);
+        arma::cube matrixA5 = Transpose(matrixA1);
+        arma::cube matrixA6 = FlipLRCube(matrixA5);
+        arma::cube matrixA7 = FlipUDCube(matrixA5);
+        arma::cube matrixA8 = FlipLRCube(matrixA7);
+        matrixS = (matrixA1 + matrixA2 + matrixA3 + matrixA4 + matrixA5 + matrixA6 + matrixA7 + matrixA8)%filter/8.0;
+    }
+    else
+    {
+        std::cout << "Incorrect input for the orbital model, phiModel." << std::endl;
+        std::cout << "Please choose a value of either s, p, or d." << std::endl;
+        exit(1);
+    }
+
+    return matrixS;
+
+}
+
+
+
 
 
 int main()
@@ -768,6 +1252,7 @@ int main()
     eliashberg.SolveEliashberg();
 
     return 0;
+
 }
 
 
