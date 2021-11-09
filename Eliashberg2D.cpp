@@ -253,6 +253,10 @@ void Eliashberg::SolveEliashberg()
             while(relaxIndex < _relaxation.size())
             {
 
+                std::cout << " "  << std::endl;
+                std::cout << "Attempt with relaxation value of: " << _relaxation[relaxIndex] << std::endl; 
+                std::cout << " "  << std::endl;
+
                 //set size of tStep and lambdaVec to 1
                 tStep.set_size(1);
                 lambdaVec.set_size(1);
