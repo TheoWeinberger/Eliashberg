@@ -61,19 +61,8 @@
  */
 
 
-#include <iostream>
-#include <armadillo>
-#include <cmath>
-#include <complex.h>
-#include <fftw3.h>
-#include <libconfig.h>
-#include <gsl/gsl_roots.h>
-#include <gsl/gsl_math.h>
-#include <gsl/gsl_errno.h>
-#include <libalglib/interpolation.h>
-#include <stdio.h> 
-#include <math.h>
 #include "Eliashberg2D.hpp"
+#include "Eliashberg2DSettings.hpp"
 
 
 /**
@@ -82,6 +71,9 @@
  */
 Eliashberg::Eliashberg()
 {
+
+    std::cout << "No configuration file given" << std::endl;
+    std::cout << "Defaulting to example settings" << std::endl;
 
     //Set default parameters for comparison against Ran's code
     //tight binding paramters
@@ -97,7 +89,7 @@ Eliashberg::Eliashberg()
 
     //cutoff frequency and sample
     _omegaC = 2*_n0*0.4*M_PI*_t;
-     _nK = 16;
+    _nK = 16;
 
     //system physical parameters
     _tSF = 0.67*_t;
@@ -117,6 +109,9 @@ Eliashberg::Eliashberg()
     _symm = true;
     _maxMuIter = 1000;
 
+    //How many steps to interpolate lambda and T to
+    _numLambdaSeg = 1000000;
+
     //bools and vars controlling simulations
     _magModel = "AFM";
     _phiModel = "p";
@@ -124,6 +119,44 @@ Eliashberg::Eliashberg()
 
 }
 
+
+/**
+ * @brief Construct a new Eliashberg object from input data from configuration 
+ * file called, eliashberg.cfg
+ * 
+ */
+Eliashberg::Eliashberg(const std::string& fileName)
+{
+
+    std::cout << "Beginning Eliashberg calculation from settings in " << fileName << std::endl;
+
+    //Default convergence control values
+    _errSigma = 1e-5;
+    _errLambda = 1e-5;
+    _maxIter = 3000; 
+    _phiRatio = 1e8;
+    _symm = true;
+    _maxMuIter = 1000;
+    _numLambdaSeg = 1000000;
+    _relaxation = {0.1, 0.2, 0.5, 1.0};
+
+    //set default plotting value
+    _plot = "g";
+
+
+    std::cout << " " << std::endl;
+
+    ReadFile(fileName, _t, _ratioTight, _a, _doping, _magModel, _phiModel, _chi0,
+    _k0Squared, _tSF, _gSquaredChi0tSample, _kSquaredSample, _t0, _n0, _omegaC, _nK,
+    _errSigma, _errLambda, _maxIter, _phiRatio, _symm, _maxMuIter, _numLambdaSeg, _plot, _relaxation);
+
+    //set tPrime according to ratioTight
+    _tPrime = _t*_ratioTight;
+
+    std::cout << " " << std::endl;
+
+
+}
 
 
 void Eliashberg::SolveEliashberg()
@@ -697,6 +730,7 @@ arma::mat Eliashberg::_Dispersion(const arma::vec& pX, const arma::vec& pY)
 
 }
 
+
 /**
  * @brief Function that calculates the negative root of momentum 
  * part of the susceptibility
@@ -714,6 +748,7 @@ arma::vec Eliashberg::_QMinus(const arma::vec& qX, const arma::vec& qY)
     return qHatMinus;
 
 }
+
 
 /**
  * @brief Function that calculates the positive root of momentum 
@@ -733,6 +768,7 @@ arma::vec Eliashberg::_QPlus(const arma::vec& qX, const arma::vec& qY)
 
 }
 
+
 /**
  * @brief Function that calculates the negative root of momentum 
  * part of the susceptibility. This version is for iterative calculations
@@ -750,6 +786,7 @@ double Eliashberg::_QMinus(const double& qX, const double& qY)
     return qHatMinus;
 
 }
+
 
 /**
  * @brief Function that calculates the positive root of momentum 
@@ -769,6 +806,7 @@ double Eliashberg::_QPlus(const double& qX, const double& qY)
 
 }
 
+
 /**
  * @brief Function that calculates the eta parameter for the suscpetibility
  * eta is a momentum dependent coherence length (I think)
@@ -782,6 +820,7 @@ void Eliashberg::_Eta(const arma::vec& qX, const arma::vec& qY)
     _eta = _tSF*_QMinus(qX, qY);
 
 }
+
 
 /**
  * @brief Function that calculates the eta parameter for the suscpetibility
@@ -800,6 +839,7 @@ double Eliashberg::_Eta(const double& qX, const double& qY)
 
 }
 
+
 /**
  * @brief Function that calculates the cutoff frequency for the dynamics susceptibility integration
  * 
@@ -813,6 +853,7 @@ arma::vec Eliashberg::_Omega0()
     return omega0;
 
 }
+
 
 /**
  * @brief Function that calculates the cutoff frequency for the dynamics susceptibility integration
@@ -830,6 +871,7 @@ double Eliashberg::_Omega0(const double& qX, const double& qY)
     return omega0;
 
 }
+
 
 /**
  * @brief Calculate the chemical potential energy by solving the eigenvalue equation
@@ -929,6 +971,7 @@ arma::vec Eliashberg::_calcMu(const double& tInit)
 
 }
 
+
 /**
  * @brief Function to calculate the integral of the dynamic susceptibility
  * 
@@ -991,6 +1034,7 @@ arma::cube Eliashberg::_ChiQNu(const arma::vec& vMatsu, const arma::vec& qX, con
 
 }
 
+
 /**
  * @brief Function for the analytical expression of the dynamic susceptibility integral
  * 
@@ -1007,6 +1051,7 @@ double Eliashberg::_ChiInt(const double& y, const double& a, const double& b)
     return chiInt;
 
 }
+
 
 /**
  * @brief This function uses the FFT to calculate a circular convolution between matrix A and B in 
@@ -1101,6 +1146,7 @@ arma::cx_cube Eliashberg::_MatsuConv(const arma::cx_cube& matrixA, const arma::c
 
 }
 
+
 /**
  * @brief Function to set DFT plans for the matsubara frequency convolution
  * 
@@ -1116,6 +1162,7 @@ void Eliashberg::_SetDFTPlans(const arma::cx_cube& in, const arma::cx_cube& out)
 
 }
 
+
 /**
  * @brief Function to set DFT plans for the matsubara frequency convolution
  * 
@@ -1130,6 +1177,7 @@ void Eliashberg::_SetDFTPlansRG(const arma::cx_cube& in, const arma::cx_cube& ou
     _inversePlanRG = fftw_plan_dft_3d(in.n_slices, in.n_cols, in.n_rows, (double(*)[2])&in(0,0,0), (double(*)[2])&out(0,0,0), FFTW_BACKWARD, FFTW_ESTIMATE);
 
 }
+
 
 /**
  * @brief Function to delete DFT plans for the matsubara frequency convolution
@@ -1147,6 +1195,7 @@ void Eliashberg::_DeleteDFTPlans()
     fftw_destroy_plan(_inversePlanRG);
 
 }
+
 
 /**
  * @brief Calculate the phi function used to iteratively calculate the eigenalue lambda
@@ -1211,6 +1260,7 @@ arma::cube Eliashberg::_PhiFun(const arma::vec& qX, const arma::vec& qY)
 
 }
 
+
 /**
  * @brief Calculate the symmetric phi function used to iteratively calculate the eigenalue lambda
  * via the power method
@@ -1274,6 +1324,7 @@ arma::cube Eliashberg::_PhiSymm(const arma::vec& qX, const arma::vec& qY)
 
 }
 
+
 /**
  * @brief A function to symmetrise a matrix according to its symmetry model (s, p ,d)
  * and the sign symmetry of the matrix filter. The size of the matrix should be even
@@ -1325,19 +1376,705 @@ arma::cube Eliashberg::_SymmByFiltLabel(arma::cube& matrixA, const arma::cube& f
 }
 
 
-
-
-
-int main()
+/**
+ * @brief Function to solve for the number of fermions in the system
+ * 
+ * @param mu the chemical potential
+ * @param t the temperature
+ * @return arma::mat nFermiMat matrix of the nFermi at each sampling point
+ */
+arma::mat NFermi(const double& mu, const double& t, const arma::mat& energy)
 {
 
-    Eliashberg eliashberg;
+    arma::mat nFermiMat = 1.0/(exp((energy-mu)/t) + 1);
 
-    eliashberg.SolveEliashberg();
-
-    return 0;
+    return nFermiMat;
 
 }
+
+
+/**
+ * @brief Function to solve for the derivate of the
+ * number of fermions in the system
+ * 
+ * @param mu the chemical potential
+ * @param t the temperature
+ * @return double nFermiMat matrix of the derivative of nFermi at each sampling point
+ */
+arma::mat NFermiDeriv(const double& mu, const double& t, const arma::mat& energy)
+{
+
+    arma::mat nFermiMatDeriv = exp((energy-mu)/t)/(t*pow((exp((energy-mu)/t) + 1), 2.0));
+
+    return nFermiMatDeriv;
+
+}
+
+
+/**
+ * @brief Function used to evaluate the total state density
+ * 
+ * @param mu the chemical potential
+ * @param p parameters for the equations - the temperature
+ * @return nTotal the total density of states
+ */
+double NTotal(double mu, void* p)
+{
+
+    struct NTotalEvalParams * params = (struct NTotalEvalParams *)p;
+
+    double t = (params->t);
+    arma::mat energy = (params->energy);
+    double nK = (params->nK); 
+    double doping = (params->doping);
+
+    double nTotal = 2.0*arma::accu(NFermi(mu, t, energy))/pow(nK, 2.0) - doping;
+
+    return nTotal;
+}
+
+
+/**
+ * @brief Function used to evaluate the derivative of the total state density
+ * 
+ * @param mu the chemical potential
+ * @param p parameters for the equations - the temperature
+ * @return nTotalDeriv the derivative of the total density of states
+ */
+double NTotalDeriv(double mu, void* p)
+{
+
+    struct NTotalEvalParams * params = (struct NTotalEvalParams *)p;
+
+    double t = (params->t);
+    arma::mat energy = (params->energy);
+    double nK = (params->nK); 
+
+    double nTotalDeriv = 2.0*arma::accu(NFermiDeriv(mu, t, energy))/pow(nK, 2.0);
+
+    return nTotalDeriv;
+}
+
+
+/**
+ * @brief Function used to assign pointers to the total state density and 
+ * the derivative
+ * 
+ * @param mu the chemical potential
+ * @param p parameters for the equations - the temperature
+ */
+void NTotalAndDeriv(double mu, void* p, double *nTotal, double *nTotalDeriv)
+{
+
+    struct NTotalEvalParams * params = (struct NTotalEvalParams *)p;
+
+    double t = (params->t);
+    arma::mat energy = (params->energy);
+    double nK = (params->nK); 
+    double doping = (params->doping);
+
+    *nTotal = 2.0*arma::accu(NFermi(mu, t, energy))/pow(nK, 2.0) - doping;
+    *nTotalDeriv = 2.0*arma::accu(NFermiDeriv(mu, t, energy))/pow(nK, 2.0);
+}
+
+
+/**
+ * @brief Function to append a value to a vector, note this is highly inefficient and should be
+ * modified in the final code
+ * 
+ * @param vector vector to which the value is being appended to
+ * @param value value being appended to the vector
+ */
+void vecPush(arma::vec& vector, const double& value)  
+{
+
+    arma::vec addValue(1);
+    addValue.at(0) = value;
+    vector.insert_rows(vector.n_rows, addValue.row(0));
+
+}
+
+
+/**
+ * @brief Apply fftshift in the dimension of the cube 
+ * as specified. This is to centre the 0 frequency output 
+ * of a fourier transform. The fft shift is equivalent to
+ * a circular permutation of floor(a.length/2).
+ * 
+ * @param a The input cube
+ * @param dim Dimension which the shift is being applied, 1 - rows, 2 - columns, 3 - slices.
+ * @return arma::cx_cube Shifted cube
+ */
+arma::cx_cube FftShift(arma::cx_cube& a, const int& dim)
+{
+    //get the length of the array in the dimension of the shift
+    int length;
+
+    //shifted output
+    arma::cx_cube shiftA;
+    shiftA.copy_size(a);
+
+    //get real and imaginary parts
+    arma::cube realA = arma::real(a);
+    arma::cube imagA = arma::imag(a);
+    
+    if(dim == 1)
+    {
+        length = a.n_rows;
+
+        //get the length of the shift
+        int shiftMin = int(floor((double)length/2.0));
+
+        //apply shift to each slice, this is done with lambda functions
+        realA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, shiftMin, 0);});
+        imagA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, shiftMin, 0);});
+
+        arma::cx_cube shiftATemp(realA, imagA);
+        
+        shiftA = shiftATemp;
+    }
+    else if(dim == 2)
+    {
+        length = a.n_cols;
+
+        //get the length of the shift
+        int shiftMin = int(floor((double)length/2.0));
+
+        //apply shift to each slice, this is done with lambda functions
+        realA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, shiftMin, 1);});
+        imagA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, shiftMin, 1);});
+
+        arma::cx_cube shiftATemp(realA, imagA);
+        
+        shiftA = shiftATemp;
+    }
+    else if(dim == 3)
+    {
+        length = a.n_slices;
+
+        //get the length of the shift
+        int shiftMax = int(ceil((double)length/2.0));
+
+        //get slices to swap
+        arma::cx_cube tempA1 = a.slices(0, shiftMax);
+        arma::cx_cube tempA2 = a.slices(shiftMax + 1, length - 1);
+
+        //create new cube with swapped slices
+        arma::cx_cube shiftATemp =  arma::join_slices(tempA1, tempA2);
+
+        shiftA = shiftATemp;
+    }
+
+    return shiftA;
+
+}
+
+
+/**
+ * @brief Apply Ifftshift in the dimension of the cube 
+ * as specified. This is to centre the 0 frequency output 
+ * of a fourier transform. The fft shift is equivalent to
+ * a circular permutation of - floor(a.length/2). Ifftshift will
+ * always undo the operation of Fftshift
+ * 
+ * @param a The input cube
+ * @param dim Dimension which the shift is being applied, 1 - rows, 2 - columns, 3 - slices.
+ * @return arma::cx_cube Shifted cube
+ */
+arma::cx_cube IfftShift(arma::cx_cube& a, const int& dim)
+{
+    //get the length of the array in the dimension of the shift
+    int length;
+
+    //shifted output
+    arma::cx_cube shiftA;
+    shiftA.copy_size(a);
+
+    //get real and imaginary parts
+    arma::cube realA = arma::real(a);
+    arma::cube imagA = arma::imag(a);
+    
+    if(dim == 1)
+    {
+        length = a.n_rows;
+
+        //get the length of the shift
+        int shiftMin = int(floor((double)length/2.0));
+
+        //apply shift to each slice, this is done with lambda functions
+        realA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, -shiftMin, 0);});
+        imagA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, -shiftMin, 0);});
+
+        arma::cx_cube shiftATemp(realA, imagA);
+        
+        shiftA = shiftATemp;
+    }
+    else if(dim == 2)
+    {
+        length = a.n_cols;
+
+        //get the length of the shift
+        int shiftMin = int(floor((double)length/2.0));
+
+        //apply shift to each slice, this is done with lambda functions
+        realA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, -shiftMin, 1);});
+        imagA.each_slice([&shiftMin](arma::mat& tempA){tempA = shift(tempA, -shiftMin, 1);});
+
+        arma::cx_cube shiftATemp(realA, imagA);
+        
+        shiftA = shiftATemp;
+    }
+    else if(dim == 3)
+    {
+        length = a.n_slices;
+
+        //get the length of the shift
+        //get the length of the shift
+        int shiftMin = int(floor((double)length/2.0));
+
+        //get slices to swap
+        arma::cx_cube tempA1 = a.slices(0, shiftMin);
+        arma::cx_cube tempA2 = a.slices(shiftMin + 1, length - 1);
+
+        //create new cube with swapped slices
+        arma::cx_cube shiftATemp =  arma::join_slices(tempA1, tempA2);
+
+        shiftA = shiftATemp;
+    }
+
+    return shiftA;
+}
+
+
+/**
+ * @brief Function to pad a cube with slices of of value = val
+ * 
+ * @param a The cube being padded
+ * @param nSlices The 'thickness' of the padding i.e. the number of slices being padded with
+ * @param val The value being padded with
+ * @return paddedA The padded cube
+ */
+arma::cx_cube PadCube(arma::cx_cube& a, const int& nSlices, const double& val)
+{
+
+    //create padding
+    arma::cx_cube padding(a.n_rows, a.n_cols, nSlices);
+
+    padding.fill(val);
+
+    arma::cx_cube paddedA =  arma::join_slices(a, padding);
+
+    return paddedA;
+
+}
+
+/**
+ * @brief Construct a complex cube out of the real inptu data
+ * 
+ * @param in a real cube 
+ * @return out a complex cube with imaginary part 0 and real part equal to in
+ */
+arma::cx_cube RealToComplex(const arma::cube& in)
+{
+
+    //create a cube of zeros of matching size
+    arma::cube zeros;
+    zeros.copy_size(in);
+
+    //set all values to 0
+    zeros.fill(0);
+
+    arma::cx_cube out(in, zeros);
+    
+    return out;
+
+}
+
+
+/**
+ * @brief Function to symmetrise a complex cube
+ * 
+ * @param in the complex cube to be symmetrised
+ * @return out the symmetrised cube
+ */
+arma::cx_cube Symmetrise(arma::cx_cube& in)
+{
+
+    //create cube to be tranposed
+    arma::cx_cube transposeIn;
+
+    transposeIn = in;
+
+    //tranpose each slice within the cube
+    transposeIn.each_slice([](arma::cx_mat& tempA){tempA = tempA.st();});
+
+    //calculate the symmetrised cube
+    arma::cx_cube out = (in + transposeIn)/2.0;
+
+    return out;
+
+}
+
+
+/**
+ * @brief Function to symmetrise a cube
+ * 
+ * @param in the cube to be symmetrised
+ * @return out the symmetrised cube
+ */
+arma::cube Symmetrise(arma::cube& in)
+{
+
+    //create cube to be tranposed
+    arma::cube transposeIn;
+
+    transposeIn = in;
+
+    //tranpose each slice within the cube
+    transposeIn.each_slice([](arma::mat& tempA){tempA = tempA.t();});
+
+    //calculate the symmetrised cube
+    arma::cube out = (in + transposeIn)/2;
+
+    return out;
+
+}
+
+
+/**
+ * @brief Function to transpose a cube
+ * 
+ * @param in the cube to be tranposed
+ * @return tranpose the transposed cube
+ */
+arma::cube Transpose(arma::cube& in)
+{
+
+    //create cube to be tranposed
+    arma::cube transpose = in;
+
+    //tranpose each slice within the cube
+    transpose.each_slice([](arma::mat& tempA){tempA = tempA.t();});
+
+    return transpose;
+
+}
+
+
+/**
+ * @brief Function to transpose a complex cube
+ * 
+ * @param in the cube to be tranposed
+ * @return tranpose the transposed cube
+ */
+arma::cx_cube Transpose(arma::cx_cube& in)
+{
+
+    //create cube to be tranposed
+    arma::cx_cube transpose = in;
+
+    //tranpose each slice within the cube
+    transpose.each_slice([](arma::cx_mat& tempA){tempA = tempA.st();});
+
+    return transpose;
+
+}
+
+
+/**
+ * @brief Function to clean diagonals of a cube
+ * 
+ * @param in input cube
+ * @return out cleaned cube
+ */
+arma::cube CleanDiagonal(arma::cube& in)
+{
+
+    arma::cube out = in;
+
+    //manually set diagonal elements to 0
+    out.each_slice([](arma::mat& tempA)
+    {
+
+        arma::mat multip = arma::ones(size(tempA)) - arma::eye(size(tempA));
+        tempA = tempA%multip;
+        tempA = tempA%arma::flipud(multip);
+    });
+
+    return out;
+}
+
+
+/**
+ * @brief Function to clean diagonals of a cube
+ * 
+ * @param in input cube
+ * @return out cleaned cube
+ */
+arma::cx_cube CleanDiagonal(arma::cx_cube& in)
+{
+
+    arma::cx_cube out = in;
+
+    //manually set diagonal elements to 0
+    out.each_slice([](arma::cx_mat& tempA)
+    {
+
+        arma::mat multip = arma::ones(size(tempA)) - arma::eye(size(tempA));
+        tempA = tempA%multip;
+        tempA = tempA%arma::flipud(multip);
+    });
+
+    return out;
+}
+
+
+/**
+ * @brief Flipud for a cube
+ * 
+ * @param in input cube
+ * @return out flipud cube
+ */
+arma::cube FlipUDCube(arma::cube& in)
+{
+
+    arma::cube out = in;
+
+    //flipud each slice
+    out.each_slice([](arma::mat& tempA){tempA = arma::flipud(tempA);});
+
+    return out;
+}
+
+
+/**
+ * @brief Fliplr for a cube
+ * 
+ * @param in input cube
+ * @return out fliplr cube
+ */
+arma::cube FlipLRCube(arma::cube& in)
+{
+
+    arma::cube out = in;
+
+    //fliplr each slice
+    out.each_slice([](arma::mat& tempA){tempA = arma::fliplr(tempA);});
+
+    return out;
+}
+
+
+/**
+ * @brief Flipud for a complex cube
+ * 
+ * @param in input cube
+ * @return out flipud cube
+ */
+arma::cx_cube FlipUDCube(arma::cx_cube& in)
+{
+
+    arma::cx_cube out = in;
+
+    //flipud each slice
+    out.each_slice([](arma::cx_mat& tempA){tempA = arma::flipud(tempA);});
+
+    return out;
+}
+
+
+/**
+ * @brief Fliplr for a complex cube
+ * 
+ * @param in input cube
+ * @return out fliplr cube
+ */
+arma::cx_cube FlipLRCube(arma::cx_cube& in)
+{
+
+    arma::cx_cube out = in;
+
+    //fliplr each slice
+    out.each_slice([](arma::cx_mat& tempA){tempA = arma::fliplr(tempA);});
+
+    return out;
+}
+
+
+/**
+ * @brief A method to convert an armadillo vector to an alglib
+ * 
+ * @param vector A vector containing data to be transferrred
+ * @return alglib::real_1d_array containing data in vector
+ */
+alglib::real_1d_array ConvertToAlglib(const arma::vec& vector)
+{
+
+    //get length of arrays
+    unsigned int lengthOutput = vector.size();
+    //set up output vector
+    alglib::real_1d_array vectorOut;
+    vectorOut.setlength(lengthOutput);
+
+    //transfer data
+    for(unsigned int i = 0; i < lengthOutput; i++)
+    {
+        vectorOut[i] = vector[i];
+    }
+
+    return vectorOut;
+
+}
+
+
+/**
+ * @brief A method to convert to an armadillo vector from an 
+ * alglib array
+ * 
+ * @param array Input alglib array
+ * @return arma::vec  containing data in vector 
+ */
+arma::vec ConvertToArma(const alglib::real_1d_array& array)
+{
+    //get length of arrays
+    unsigned int lengthOutput = array.length();
+    //set up output vector
+    arma::vec vectorOut;
+    vectorOut.set_size(lengthOutput);
+
+    //transfer data
+    for(unsigned int i = 0; i < lengthOutput; i++)
+    {
+        vectorOut[i] = array[i];
+    }
+
+    return vectorOut;
+
+}
+
+
+/**
+ * @brief Method to interpolate the lambda v temperature data to help find a better 
+ * approximation for Tc. This interpolation function is a general interpolation function
+ * which either performs linear interpolation through the inbuilt armadillo functions
+ * or using the alglib cubic spline package.
+ * 
+ * @param vectorIn Input vector to be interpolated
+ * @param vectorCoordsIn coordinates of the input vector
+ * @param vectorOut output interpolated vector
+ * @param vectorCoordsOut output coordinates of the interpolation
+ * @param method linear or cubic
+ */
+void Interpolate1D(const arma::vec& vectorIn, const arma::vec& vectorCoordsIn, arma::vec& vectorOut, const arma::vec& vectorCoordsOut, const std::string& method)
+{
+
+    if(method == "cubic")
+    {
+        //convert to alglib vectors for interpolation
+        alglib::real_1d_array vectorInA = ConvertToAlglib(vectorIn);
+        alglib::real_1d_array vectorCoordsInA = ConvertToAlglib(vectorCoordsIn);
+        alglib::real_1d_array vectorOutA = ConvertToAlglib(vectorOut);
+        alglib::real_1d_array vectorCoordsOutA = ConvertToAlglib(vectorCoordsOut);
+
+        //calculate cubic spline
+        alglib::spline1dconvcubic(vectorCoordsInA, vectorInA, vectorCoordsOutA, vectorOutA);
+
+        //convert back to armadillo vector
+        vectorOut = ConvertToArma(vectorOutA);
+    }
+    else if(method == "linear")
+    {
+        //interpolate the lambda data
+        arma::interp1(vectorCoordsIn, vectorIn, vectorCoordsOut, vectorOut);
+
+    }
+
+}
+
+
+/**
+ * @brief 3D linear interpolation for a cube object
+ * 
+ * @param x original x coordinates
+ * @param y original y coordinates
+ * @param z original z coordinates
+ * @param in input gridded cube
+ * @param xi x coordinates for interpolation
+ * @param yi y coorindates for interpolation
+ * @param zi z coordaintes for interpolation
+ * @return interp the interpolated input matrix
+ */
+arma::cube Interpolate3D(const arma::vec& x, const arma::vec& y, const arma::vec& z, const arma::cube& in, const arma::vec& xi, const arma::vec& yi, const arma::vec& zi)
+{
+    //set interpolated cube
+    //temporary cube for in plane interpolation
+    arma::cube interpTemp(xi.size(), yi.size(), z.size());
+    //final interpolation
+    arma::cube interp(xi.size(), yi.size(), zi.size());
+
+    //only interpolate if necessary
+    if(accu(abs(x - xi)) == 0 && accu(abs(y - yi)) == 0)
+    {
+        interpTemp = in;
+    }
+    else
+    {
+        //interpolate in the x-y plane
+        for(unsigned int i = 0; i < z.size(); i++)
+        {
+            arma::interp2(x, y, in.slice(i), xi, yi, interpTemp.slice(i));
+        }
+
+    }
+
+    //interpolate across z axis
+    for(unsigned int i = 0; i < xi.size(); i++)
+    {
+        for(unsigned int j = 0; j < yi.size(); j++)
+        {
+
+            arma::vec initData = interpTemp.tube(i,j);
+
+            //holder for interpolated data
+            arma::vec interpData;
+
+            //interpolate data
+            //arma::interp1(z, initData, zi, interpData);
+            Interpolate1D(initData, z, interpData, zi, "cubic");
+
+            //linear extrapolation if the data is outside region
+            /************************************
+             * 
+             * This needs to be made better so it actually catches all cases
+             * 
+             * ***********************************/
+            if(interpData.has_nan() == true)
+            {
+                interpData[0] = 2.0*interpData[1] - interpData[2];
+                interpData[interpData.size() - 1] = 2.0*interpData[interpData.size() - 2] - interpData[interpData.size() - 3];
+            }
+
+            interp.tube(i,j) = interpData;
+        }
+    }
+
+    return interp;
+
+}
+
+
+/**
+ * @brief Template to determine the sign of a number
+ * 
+ * @tparam T 
+ * @param x
+ * @return int 
+ */
+template <typename T> int sgn(T x) 
+{
+    return (T(0) < x) - (x < T(0));
+}
+
 
 
 
