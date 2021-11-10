@@ -316,8 +316,8 @@ void Eliashberg::SolveEliashberg()
                     }
 
                     //Intialise G
-                    arma::cx_cube gInv(_nK, _nK, _nK);
-                    arma::cx_cube g(_nK, _nK, _nK);
+                    arma::cx_cube gInv(_nK, _nK, 2*_n0);
+                    arma::cx_cube g(_nK, _nK, 2*_n0);
 
                     for(unsigned int i = 0; i < qX.n_elem; i++)
                     {
@@ -680,7 +680,7 @@ void Eliashberg::SolveEliashberg()
             
         }
 
-        outputData.save("gData", arma::csv_ascii);
+        outputData.save("gData_k" + std::to_string(_kSquaredSample[0]) + "_" + _magModel, arma::csv_ascii);
     }
     //plot as a function of kappa
     else if(_plot == "k")
@@ -695,7 +695,7 @@ void Eliashberg::SolveEliashberg()
             
         }
 
-        outputData.save("kData", arma::csv_ascii);
+        outputData.save("kData_g" + std::to_string(_gSquaredChi0tSample[0]) + "_" + _magModel, arma::csv_ascii);
     }
     else
     {

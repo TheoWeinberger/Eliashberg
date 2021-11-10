@@ -118,6 +118,11 @@ int ReadFile(const std::string& fileName, double& t, double& ratioTight, double&
         n0 = root["samplingControl"]["n0"];
         nK = root["samplingControl"]["nK"];
 
+        //get spin fluctuation temp
+        //get convergence control parameters
+        tSF = root["phyParam"]["tSF"];
+        tSF *= t;
+
 	}
   	catch(const libconfig::ParseException &pex)
 	{
@@ -281,25 +286,6 @@ int ReadFile(const std::string& fileName, double& t, double& ratioTight, double&
 
     //get remaining parameters, these can either be set in the cfg file 
     //however many of these are generally functions of other variables set earlier
-
-    //get the characteristic spin flucuation temperature
-    try
-    {
-        //get convergence control parameters
-        tSF = root["phyParam"]["tSF"];
-    }
-  	catch(const libconfig::ParseException &pex)
-	{
-		std::cerr << "Parse error at " << pex.getFile() << ":" << pex.getLine()
-					<< " - " << pex.getError() << std::endl;
-		exit(EXIT_FAILURE);
-	}
-    catch(const libconfig::SettingNotFoundException &pex)
-    {
-        std::cout << "No input value at: " << pex.getPath() << std::endl;
-        std::cout << "Setting to default" << std::endl;
-        tSF = 0.67*t;
-    }
 
     //get the initial temperature for sampling
     try
