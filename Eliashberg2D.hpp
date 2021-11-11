@@ -60,6 +60,9 @@
  * 
  */
 
+//calls for arma to make it faster
+#define ARMA_NO_DEBUG
+
 #include <iostream>
 #include <armadillo>
 #include <cmath>

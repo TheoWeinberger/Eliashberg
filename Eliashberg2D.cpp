@@ -188,6 +188,9 @@ void Eliashberg::SolveEliashberg()
     arma::mat tC(lenKSample, lenGSample, arma::fill::zeros);
     /*********************************/
     arma::mat tInit(lenKSample, lenGSample, arma::fill::zeros); //does this get used
+
+    //initialise energy
+    _energy = _Dispersion(qX, qY);
     /**********************************/
 
     //calculate the array containing the chemical potential
@@ -289,8 +292,9 @@ void Eliashberg::SolveEliashberg()
 
                 /*Search for self consistency  of the Green's function
                 is for when the value of lambda tends to 1. Therefore
-                the search ends when lambda = 1*/
-                while(abs(lambdaVec(lambdaVec.size() - 1)) < 1.0)
+                the search ends when lambda = 1. The loop is broken
+                if counter goes above 40 where Tc ~ 0*/
+                while(abs(lambdaVec(lambdaVec.size() - 1)) < 1.0  && counter < 40)
                 {
 
                     //reset all cubes to be filled with 0
@@ -603,6 +607,9 @@ void Eliashberg::SolveEliashberg()
                     tStep = newTStep;
 
                     t /= 2.0;
+
+                    //step the mu index
+                    muIndex++;
 
                     counter++;
                 }

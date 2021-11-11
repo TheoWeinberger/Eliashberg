@@ -12,6 +12,8 @@
  * 
  */
 
+#define ARMA_NO_DEBUG
+
 #include <iostream>
 #include <armadillo>
 #include <libconfig.h++>
