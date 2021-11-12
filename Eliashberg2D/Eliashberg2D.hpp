@@ -75,8 +75,8 @@
 #include <iostream>
 #include <complex.h>
 #include <math.h>
-#include <mkl.h>
-#include <fftw3.h>
+#include <fftw/fftw3.h>
+#include <fftw/fftw3_mkl.h>
 #include <armadillo>
 #include <libconfig.h>
 #include <gsl/gsl_roots.h>
@@ -85,6 +85,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <libalglib/interpolation.h>
+#include <mkl.h>
 
 #ifndef ELIASHBERG2D_H
 #define ELIASHBERG2D_H
