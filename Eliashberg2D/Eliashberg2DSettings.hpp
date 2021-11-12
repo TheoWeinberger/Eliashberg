@@ -13,8 +13,17 @@
  */
 
 #define ARMA_NO_DEBUG
+#define ARMA_USE_MKL_ALLOC
+#define ARMA_BLAS_LONG
+#define ARMA_BLAS_LONG_LONG
+#define ARMA_DONT_USE_FORTRAN_HIDDEN_ARGS
+#define ARMA_USE_LAPACK
+#define ARMA_USE_BLAS
+#define ARMA_USE_MKL_TYPES
+#define ARMA_ALLOW_FAKE_GCC
 
 #include <iostream>
+#include <mkl.h>
 #include <armadillo>
 #include <libconfig.h++>
 

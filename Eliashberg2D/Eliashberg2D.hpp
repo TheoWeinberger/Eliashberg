@@ -62,12 +62,22 @@
 
 //calls for arma to make it faster
 #define ARMA_NO_DEBUG
+#define ARMA_USE_MKL_ALLOC
+#define ARMA_BLAS_LONG
+#define ARMA_BLAS_LONG_LONG
+#define ARMA_DONT_USE_FORTRAN_HIDDEN_ARGS
+#define ARMA_USE_LAPACK
+#define ARMA_USE_BLAS
+#define ARMA_USE_MKL_TYPES
+#define ARMA_ALLOW_FAKE_GCC
+
 
 #include <iostream>
-#include <armadillo>
-#include <cmath>
 #include <complex.h>
+#include <math.h>
+#include <mkl.h>
 #include <fftw3.h>
+#include <armadillo>
 #include <libconfig.h>
 #include <gsl/gsl_roots.h>
 #include <gsl/gsl_math.h>

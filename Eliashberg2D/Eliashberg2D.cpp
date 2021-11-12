@@ -323,13 +323,15 @@ void Eliashberg::SolveEliashberg()
                     arma::cx_cube gInv(_nK, _nK, 2*_n0);
                     arma::cx_cube g(_nK, _nK, 2*_n0);
 
-                    for(unsigned int i = 0; i < qX.n_elem; i++)
+                    for(int i = 0; i < _nK; i++)
                     {
-                        for(unsigned int j = 0; j < qY.n_elem; j++)
+                        for(int j = 0; j < _nK; j++)
                         {
-                            for(unsigned int k = 0; k < wMatsu.n_elem; k++)
+                            for(int k = 0; k < 2*_n0; k++)
                             {
-                                gInv(i,j,k) = (I*wMatsu(k) - (_energy(i,j) - _mu));
+                                //define complex double 
+                                std::complex<double> val(- (_energy(i,j) - _mu), wMatsu(k));
+                                gInv(i,j,k) = val;
                             }
                         }
                     }
@@ -371,7 +373,8 @@ void Eliashberg::SolveEliashberg()
                         relErrS = deltaS/totalS;
 
                         //iterate the sigma matrix
-                        sigma = _relaxation[relaxIndex]*sigmaMatsuConv + (1 - _relaxation[relaxIndex])*sigma;                     
+                        //switched relaxation because this makes more sense
+                        sigma = (1 - _relaxation[relaxIndex])*sigmaMatsuConv + _relaxation[relaxIndex]*sigma;                     
                     
                         /*sigma should be symmetric in rows and columns (i.e. within the slices)
                         make sure that this is the case as it can vary a bit over time due to 
@@ -709,6 +712,9 @@ void Eliashberg::SolveEliashberg()
         std::cout << "Incorrect plotting values, please set plot to either g or k" << std::endl;
         exit(1);
     }
+
+    _DeleteDFTPlans();
+
 }
 
 
@@ -1229,11 +1235,11 @@ arma::cube Eliashberg::_PhiFun(const arma::vec& qX, const arma::vec& qY)
     //case for p wave
     else if(_phiModel == "p")
     {
-        for(unsigned int i = 0; i < phi.n_slices; i++)
+        for(int i = 0; i < 2*_n0; i++)
         {
-            for(unsigned int j = 0; j < phi.n_cols; j++)
+            for(int j = 0; j < _nK; j++)
             {
-                for(unsigned int k = 0; k < phi.n_rows; k++)
+                for(int k = 0; k < _nK; k++)
                 {
 
                     phi(k, j, i) = sin(qX[k]*_a);
@@ -1245,12 +1251,11 @@ arma::cube Eliashberg::_PhiFun(const arma::vec& qX, const arma::vec& qY)
     //case for d wave
     else if(_phiModel == "d")
     {
-
-        for(unsigned int i = 0; i < phi.n_slices; i++)
+        for(int i = 0; i < 2*_n0; i++)
         {
-            for(unsigned int j = 0; j < phi.n_cols; j++)
+            for(int j = 0; j < _nK; j++)
             {
-                for(unsigned int k = 0; k < phi.n_rows; k++)
+                for(int k = 0; k < _nK; k++)
                 {
 
                     phi(k, j, i) = cos(qX[k]*_a) -  cos(qY[j]*_a);
@@ -1293,11 +1298,11 @@ arma::cube Eliashberg::_PhiSymm(const arma::vec& qX, const arma::vec& qY)
     //case for p wave
     else if(_phiModel == "p")
     {
-        for(unsigned int i = 0; i < phi.n_slices; i++)
+        for(int i = 0; i < 2*_n0; i++)
         {
-            for(unsigned int j = 0; j < phi.n_cols; j++)
+            for(int j = 0; j < _nK; j++)
             {
-                for(unsigned int k = 0; k < phi.n_rows; k++)
+                for(int k = 0; k < _nK; k++)
                 {
 
                     phi(k, j, i) = sgn(qX[k]);
@@ -1309,12 +1314,11 @@ arma::cube Eliashberg::_PhiSymm(const arma::vec& qX, const arma::vec& qY)
     //case for d wave
     else if(_phiModel == "d")
     {
-
-        for(unsigned int i = 0; i < phi.n_slices; i++)
+        for(int i = 0; i < 2*_n0; i++)
         {
-            for(unsigned int j = 0; j < phi.n_cols; j++)
+            for(int j = 0; j < _nK; j++)
             {
-                for(unsigned int k = 0; k < phi.n_rows; k++)
+                for(int k = 0; k < _nK; k++)
                 {
 
                     phi(k, j, i) = sgn(qX[k] - qY[j])*sgn(qX[k] + qY[j]);
