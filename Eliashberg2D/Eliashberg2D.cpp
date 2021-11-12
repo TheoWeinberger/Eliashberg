@@ -196,6 +196,49 @@ void Eliashberg::SolveEliashberg()
     //calculate the array containing the chemical potential
     arma::vec muArray = _calcMu(_t0); //note 0 is picked as an initial trial value out of convenience
 
+    //initialise remainder of variables now for more efficient run
+    //physical/sampling parameters
+    double gSquaredChi0t, gSquared, coupling;
+    //temperature and intial number of matsubara frequencies
+    double t, n;
+
+    //counting parameters 
+    unsigned int relaxIndex; //counting through the relaxation indeces
+    int counter; //counter for the number of lambda iterations
+    unsigned int muIndex; //counter for the chemical potential
+
+    //allocate memory for sigma and phi
+    arma::cx_cube sigma(_nK, _nK, 2*_n0);
+    arma::cube phi(_nK, _nK, 2*_n0);
+    arma::cube phiFilter(_nK, _nK, 2*_n0);
+
+    //intiialise matsubara convolutions
+    arma::cx_cube sigmaMatsuConv(_nK, _nK, 2*_n0);
+    arma::cube phiMatsuConv(_nK, _nK, 2*_n0);
+
+    //factors in matsubara convolutions
+    arma::cx_cube gAbsSquaredComp(_nK, _nK, 2*_n0);
+    arma::cx_cube gAbsPhi(_nK, _nK, 2*_n0);
+
+    //initialise the RG corrections 
+    arma::cx_cube dSigma(_nK, _nK, 2*_n0); 
+    arma::cube dPhi(_nK, _nK, 2*_n0); 
+    arma::cube dSigmaReal(_nK, _nK, 2*_n0);
+    arma::cube dSigmaImag(_nK, _nK, 2*_n0);
+
+    
+    /*Vectors containing the lambda values and temperature steps
+    these start off as being unit length and are appended to each 
+    iterations. Note the appending operation is highly inefficient 
+    and so should be altered in later code*/
+    arma::vec tStep;
+    arma::vec lambdaVec;
+
+    //Intialise G
+    arma::cx_cube gInv(_nK, _nK, 2*_n0);
+    arma::cx_cube g(_nK, _nK, 2*_n0);
+
+
     //direct test against Ran code
     //muArray = {1.351850567693204e+03, 6.765567525297223e+02, 3.405198980389718e+02, 1.765050769606098e+02, 1.033043515584506e+02, 86.539442523009030, 1.030800627209959e+02, 1.274838994943234e+02, 1.452422053806421e+02, 1.541559644533966e+02, 1.582541906946000e+02, 1.596428565534779e+02, 1.604206942145785e+02};
 
@@ -215,10 +258,8 @@ void Eliashberg::SolveEliashberg()
 
             //initialise parameters for search
             _kSquared = _kSquaredSample[a];
-            double gSquaredChi0t = _gSquaredChi0tSample[b];
-            double gSquared = gSquaredChi0t*_t/_chi0;
-
-            double coupling; //coupling
+            gSquaredChi0t = _gSquaredChi0tSample[b];
+            gSquared = gSquaredChi0t*_t/_chi0;
 
             if(_magModel == "FM")
             {
@@ -240,18 +281,8 @@ void Eliashberg::SolveEliashberg()
             /*initialise the relaxation weight index
             The relaxation weight smooths the transition between 
             steps to allow for more stable convergence to self-consistency*/
-            unsigned int relaxIndex = 0;
+            relaxIndex = 0;
 
-            /*Vectors containing the lambda values and temperature steps
-            these start off as being unit length and are appended to each 
-            iterations. Note the appending operation is highly inefficient 
-            and so should be altered in later code*/
-            arma::vec tStep(1);
-            arma::vec lambdaVec(1);
-
-            //doubles for temperature and sampling number
-            double t = _t0;
-            double n = _n0;
 
             while(relaxIndex < _relaxation.size())
             {
@@ -267,22 +298,21 @@ void Eliashberg::SolveEliashberg()
                 bool relaxIndexAccepted = true;
                 /*the critical temperture Tc is defined where lambda = 1
                 start the search for self consistent solutions where this holds*/
+
+                //set the inital temperature
                 t = _t0;
+                //and set initial number of matsubara frequencies
                 n = _n0;
 
-                unsigned int muIndex = 0;
-
-                //allocate memory for sigma and phi
-                arma::cx_cube sigma(_nK, _nK, 2*_n0, arma::fill::zeros);
-                arma::cube phi(_nK, _nK, 2*_n0);
-                arma::cube phiFilter(_nK, _nK, 2*_n0);
+                //set the counter for the chemical potential index to zero
+                muIndex = 0;
 
                 //initialise the RG corrections 
-                arma::cx_cube dSigma(_nK, _nK, 2*_n0, arma::fill::zeros); 
-                arma::cube dPhi(_nK, _nK, 2*_n0, arma::fill::zeros); 
+                dSigma.zeros();
+                dPhi.zeros();
 
                 //counter for iteration number
-                int counter = 0;
+                counter = 0;
 
                 //boolean to see if it is the first run
                 bool firstRun;
@@ -319,15 +349,12 @@ void Eliashberg::SolveEliashberg()
                         _mu = muArray(muIndex);
                     }
 
-                    //Intialise G
-                    arma::cx_cube gInv(_nK, _nK, 2*_n0);
-                    arma::cx_cube g(_nK, _nK, 2*_n0);
-
-                    for(int i = 0; i < _nK; i++)
+                    //note this order of looping is optimal
+                    for(int k = 0; k < 2*_n0; k++)
                     {
                         for(int j = 0; j < _nK; j++)
                         {
-                            for(int k = 0; k < 2*_n0; k++)
+                            for(int i = 0; i < _nK; i++)
                             {
                                 //define complex double 
                                 std::complex<double> val(- (_energy(i,j) - _mu), wMatsu(k));
@@ -336,6 +363,7 @@ void Eliashberg::SolveEliashberg()
                         }
                     }
 
+                
                     g = 1/gInv;
 
                     //Calculate chinu data, this corresponds to the analystical intergral of the dynamical suscpetibility
@@ -362,7 +390,7 @@ void Eliashberg::SolveEliashberg()
                          *  Weird thing with incompatible arrays here, check with Ran
                          * There may also be an error in the greens function
                          */
-                        arma::cx_cube sigmaMatsuConv = gSquared*t/(pow(_nK, 2.0))*_MatsuConv(chiQNuComplex, g, 2*n, 4*n - 1, firstRun, rg) + dSigma;
+                        sigmaMatsuConv = gSquared*t/(pow(_nK, 2.0))*_MatsuConv(chiQNuComplex, g, 2*n, 4*n - 1, firstRun, rg) + dSigma;
 
                         //set firstRun to false for remaining iterations
                         firstRun = false;
@@ -444,16 +472,16 @@ void Eliashberg::SolveEliashberg()
                     double phiInner = arma::accu(phi%phi);
 
                     //get the absolute value of g
-                    arma::cx_cube gAbsSquaredComp = RealToComplex(pow(abs(g), 2.0));
+                    gAbsSquaredComp = RealToComplex(pow(abs(g), 2.0));
 
                     //convolve chi wth |G|^2%phi
-                    arma::cx_cube gAbsPhi = gAbsSquaredComp%phi;
+                    gAbsPhi = gAbsSquaredComp%phi;
 
                     /********************
                      * 
                      * in general phimatsu conv can be imaginary, change this
                      **********************************/
-                    arma::cube phiMatsuConv = arma::real(coupling*t/pow(_nK, 2.0)*_MatsuConv(chiQNuComplex, gAbsPhi, 2*n, 4*n - 1, firstRun, rg)) + dPhi;
+                    phiMatsuConv = arma::real(coupling*t/pow(_nK, 2.0)*_MatsuConv(chiQNuComplex, gAbsPhi, 2*n, 4*n - 1, firstRun, rg)) + dPhi;
 
                     //calcilate lambda as <Phi|Phi> = <Phi|A|Phi> = <Phi|Phi1>
                     double lambda = arma::accu(phi%phiMatsuConv)/phiInner;
@@ -567,14 +595,6 @@ void Eliashberg::SolveEliashberg()
                     arma::cx_cube sigmaL = sigma.slices((n - m),(n + m -1)); 
 
                     //holder for dSigma
-                    arma::cube dSigmaReal, dSigmaImag;
-
-                    //set to zero
-                    dPhi.zeros();
-                    dSigma.zeros();
-                    dSigmaImag.zeros();
-                    dSigmaReal.zeros();
-
 
                     //note I think 3D interpolation is unecessary as it is just along the frequency domain that interpolation occurs
                     //interpolate real and imaginary parts
@@ -582,7 +602,6 @@ void Eliashberg::SolveEliashberg()
                     dSigmaImag = Interpolate3D(qX, qY, wL, arma::imag(sigmaL - sigmaLL), qX, qY, wMatsu/2.0);
 
                     //set whole dSigma matrix
-                    dSigma.copy_size(dSigmaReal);
                     dSigma.set_real(dSigmaReal);
                     dSigma.set_imag(dSigmaImag);
 
@@ -732,11 +751,10 @@ arma::mat Eliashberg::_Dispersion(const arma::vec& pX, const arma::vec& pY)
 
     //initialise the dispersion matrix
     arma::mat dispersion(_nK, _nK);
-
-    for(int i = 0; i < _nK; i++)
+    
+    for(int j = 0; j < _nK; j++)
     {
-
-        for(int j = 0; j < _nK; j++)
+        for(int i = 0; i < _nK; i++)
         {
             dispersion(i, j) = -2.0*_t*(cos(pX[i]*_a) + cos(pY[j]*_a)) - 4.0*_tPrime*cos(pX[i]*_a)*cos(pY[j]*_a);
         }
@@ -1009,11 +1027,11 @@ arma::cube Eliashberg::_ChiQNu(const arma::vec& vMatsu, const arma::vec& qX, con
     double omega0, eta, qHat, a;
 
     //Evaluate the integral of chiQNu at each point
-    for(int i = 0; i < iMax; i++)
+    for(int k = 0; k < kMax; k++)
     {
         for(int j = 0; j < jMax; j++)
         {
-            for(int k = 0; k < kMax; k++)
+            for(int i = 0; i < iMax; i++)
             {
 
                 omega0 = _Omega0(qX[i], qY[j]);
@@ -2043,9 +2061,9 @@ arma::cube Interpolate3D(const arma::vec& x, const arma::vec& y, const arma::vec
     }
 
     //interpolate across z axis
-    for(unsigned int i = 0; i < xi.size(); i++)
+    for(unsigned int j = 0; j < yi.size(); j++)
     {
-        for(unsigned int j = 0; j < yi.size(); j++)
+        for(unsigned int i = 0; i < yi.size(); i++)
         {
 
             arma::vec initData = interpTemp.tube(i,j);
