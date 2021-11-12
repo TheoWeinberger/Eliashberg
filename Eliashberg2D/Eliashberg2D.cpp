@@ -709,6 +709,9 @@ void Eliashberg::SolveEliashberg()
         std::cout << "Incorrect plotting values, please set plot to either g or k" << std::endl;
         exit(1);
     }
+
+    _DeleteDFTPlans();
+    
 }
 
 
