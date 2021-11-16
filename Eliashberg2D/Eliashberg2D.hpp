@@ -70,6 +70,7 @@
 #define ARMA_USE_BLAS
 #define ARMA_USE_MKL_TYPES
 #define ARMA_ALLOW_FAKE_GCC
+#define ARMA_USE_WRAPPER
 
 
 #include <iostream>
