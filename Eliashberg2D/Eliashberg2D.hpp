@@ -84,7 +84,6 @@
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_errno.h>
 #include <stdio.h>
-#include <math.h>
 #include <libalglib/interpolation.h>
 #include <mkl.h>
 
