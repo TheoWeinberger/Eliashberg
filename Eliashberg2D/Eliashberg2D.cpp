@@ -2108,6 +2108,23 @@ template <typename T> int sgn(T x)
     return (T(0) < x) - (x < T(0));
 }
 
+/**
+ * @brief Extern capabilities to allow interfacing with python code
+ * 
+ */
+extern "C" {
+    Eliashberg* Eliashberg_New(const char* config)
+    {
+        //convert char* to string
+        std::string strConfig(config);   
+        return new Eliashberg(strConfig); 
+
+    }; 
+
+    void Eliashberg_SolveEliashberg(Eliashberg* eliashberg){ eliashberg->SolveEliashberg(); }
+}
+
+
 
 
 
