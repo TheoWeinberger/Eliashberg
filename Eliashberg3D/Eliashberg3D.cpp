@@ -66,6 +66,16 @@
  * 
  */
 
+/*to do:
+
+Find difference in dSigma
+
+symmetrisationB
+
+plotting/output
+
+
+*/
 
 #include "Eliashberg3D.hpp"
 #include "Eliashberg3DSettings.hpp"
@@ -150,7 +160,7 @@ Eliashberg::Eliashberg(const std::string& fileName)
     _alphaMSample = {1.0};
 
     //set default plotting value
-    _plot = "g";
+    _plot = "alpha";
 
 
     std::cout << " " << std::endl;
@@ -182,24 +192,95 @@ void Eliashberg::SolveEliashberg()
     int lenAlphaM = _alphaMSample.size();
 
     //check sampling is properly set up
-    if(lenKSample > 1 && _plot != "k")
+    
+    if(lenGSample > 1 && _plot == "k")
     {
         std::cout << "Data structure is not formatted for plotting in k space, please check the k sampling matrix and the plotting settings" << std::endl;
         std::cout << "To plot Tc as a function of k, _plot should be set to k and the k sampling array should have multiple values" << std::endl;
         exit(1);
     }
 
-    if(lenKSample > 1 && _plot != "k")
+    if(lenAlphaT > 1 && _plot == "k")
+    {
+        std::cout << "Data structure is not formatted for plotting in k space, please check the k sampling matrix and the plotting settings" << std::endl;
+        std::cout << "To plot Tc as a function of k, _plot should be set to k and the k sampling array should have multiple values" << std::endl;
+        exit(1);
+    }
+
+    if(lenAlphaM > 1 && _plot == "k")
+    {
+        std::cout << "Data structure is not formatted for plotting in k space, please check the k sampling matrix and the plotting settings" << std::endl;
+        std::cout << "To plot Tc as a function of k, _plot should be set to k and the k sampling array should have multiple values" << std::endl;
+        exit(1);
+    }
+
+    if(lenKSample > 1 && _plot == "g")
     {
         std::cout << "Data structure is not formatted for plotting in g space, please check the g sampling matrix and the plotting settings" << std::endl;
         std::cout << "To plot Tc as a function of g, _plot should be set to g and the g sampling array should have multiple values" << std::endl;
         exit(1);
     }
 
+    if(lenAlphaM > 1 && _plot == "g")
+    {
+        std::cout << "Data structure is not formatted for plotting in g space, please check the g sampling matrix and the plotting settings" << std::endl;
+        std::cout << "To plot Tc as a function of g, _plot should be set to g and the g sampling array should have multiple values" << std::endl;
+        exit(1);
+    }
+    
+    if(lenAlphaT > 1 && _plot == "g")
+    {
+        std::cout << "Data structure is not formatted for plotting in g space, please check the g sampling matrix and the plotting settings" << std::endl;
+        std::cout << "To plot Tc as a function of g, _plot should be set to g and the g sampling array should have multiple values" << std::endl;
+        exit(1);
+    }
+
+    if(_plot == "kg" && lenAlphaT > 1)
+    {
+        std::cout << "Data structure is not formatted for plotting in k-g space, please check the sampling matrices and the plotting settings" << std::endl;
+        std::cout << "To plot Tc as a function of k-g, _plot should be set to kg and the alpha sampling arrays should be single valued" << std::endl;
+        exit(1);
+    }
+
+    if(_plot == "kg" && lenAlphaM > 1)
+    {
+        std::cout << "Data structure is not formatted for plotting in k-g space, please check the sampling matrices and the plotting settings" << std::endl;
+        std::cout << "To plot Tc as a function of k-g, _plot should be set to kg and the alpha sampling arrays should be single valued" << std::endl;
+        exit(1);       
+    }
+
+    if(_plot == "alpha" && lenGSample > 1)
+    {
+        std::cout << "Data structure is not formatted for plotting in alpha space, please check the sampling matrices and the plotting settings" << std::endl;
+        std::cout << "To plot Tc as a function of alpha, _plot should be set to alpha and the g and k sampling arrays should be single valued" << std::endl;
+        exit(1);
+    }
+
+    if(_plot == "alpha" && lenKSample > 1)
+    {
+        std::cout << "Data structure is not formatted for plotting in alpha space, please check the sampling matrices and the plotting settings" << std::endl;
+        std::cout << "To plot Tc as a function of alpha, _plot should be set to alpha and the g and k sampling arrays should be single valued" << std::endl;
+        exit(1);       
+    }
+
+    arma::mat tC, tInit;
     //temperature arrays
-    arma::mat tC(lenKSample, lenGSample, arma::fill::zeros);
-    /*********************************/
-    arma::mat tInit(lenKSample, lenGSample, arma::fill::zeros); //does this get used
+    if(_plot == "alpha")
+    {
+        tC.resize(lenAlphaM, lenAlphaT);
+        tC.fill(0.0);
+        /*********************************/
+        tInit.resize(lenAlphaM, lenAlphaT);
+        tInit.fill(0.0); //does this get used
+    }
+    else
+    {
+        tC.resize(lenKSample, lenGSample);
+        tC.fill(0.0);
+        /*********************************/
+        tInit.resize(lenKSample, lenGSample);
+        tInit.fill(0.0); //does this get used
+    }
 
     //initialise energy
     _energy = _Dispersion(qX, qY, qZ);
@@ -281,10 +362,8 @@ void Eliashberg::SolveEliashberg()
     arma::vec tStep;
     arma::vec lambdaVec;
 
-
-
     //direct test against Ran code
-    muArray = {178.755127128072,108.578641736149,94.6635609987612,110.255073698169,131.715764552851,145.752034210909,151.043635672090,152.067024877566,152.404983516244,152.193764044987,151.640222096965};
+    muArray = {1.852935461551102e+02,108.578641736149,94.6635609987612,110.255073698169,131.715764552851,145.752034210909,151.043635672090,152.067024877566,152.404983516244,152.193764044987,151.640222096965};
 
     for(int a = 0; a < lenKSample; a++)
     {
@@ -509,7 +588,7 @@ void Eliashberg::SolveEliashberg()
                                         std::cout << "Please choose either symmetrisation type A or B" << std::endl;
                                         exit(1);
                                     }
-                                }               
+                                }          
 
                                 if(relErrS < _errSigma)
                                 {
@@ -543,8 +622,8 @@ void Eliashberg::SolveEliashberg()
 
                             //find the `eigenvalue' lambda using the power methid
                             //set the phi depending on the phi model
-                            phi = _PhiFun(qX, qY, qZ);
-                            phiFilter = _PhiSymm(qX, qY, qZ);
+                            phi = _PhiFun(qX, qY);
+                            phiFilter = _PhiSymm(qX, qY);
 
                 
 
@@ -770,8 +849,8 @@ void Eliashberg::SolveEliashberg()
                                 dSigmaImagTemp[l] = arma::imag(diffTemp);
                             }
 
-                            dSigmaReal = Interpolate4D(qX, qY, qZ, wL, dSigmaRealTemp, qX, qY, qZ, wMatsu/2.0);
-                            dSigmaImag = Interpolate4D(qX, qY, qZ, wL, dSigmaImagTemp, qX, qY, qZ, wMatsu/2.0);
+                            dSigmaReal = Interpolate4D(qX, qY, qZ, wL, dSigmaRealTemp, qX, qY, qZ, wMatsu/2.0, "cubic");
+                            dSigmaImag = Interpolate4D(qX, qY, qZ, wL, dSigmaImagTemp, qX, qY, qZ, wMatsu/2.0, "cubic");
 
                             //set whole dSigma matrix
                             for(unsigned int l = 0; l < dSigmaImag.size(); l++)
@@ -804,7 +883,7 @@ void Eliashberg::SolveEliashberg()
                                 dPhiTemp[l] = lambda*phiL[l] - phiLL[l];
                             }
 
-                            dPhi = Interpolate4D(qX, qY, qZ, wL, dPhiTemp, qX, qY, qZ, wMatsu/2.0);
+                            dPhi = Interpolate4D(qX, qY, qZ, wL, dPhiTemp, qX, qY, qZ, wMatsu/2.0, "cubic");
 
                             //rather than appending to tStep, create a new vector at the desired length
                             //and add values to this
@@ -849,19 +928,31 @@ void Eliashberg::SolveEliashberg()
                     arma::uword indexTC = (abs(lInterp - 1.0)).index_min();
 
                     //extract the critical temperature
-                    tC(a, b) = tInterp(indexTC);
-                    //output the critical temperature
-                    std::cout << "    " << std::endl;
-                    std::cout << "Tc: "<< tC(a,b) << std::endl;
-                    std::cout << "Tc/Tsf: " << tC(a,b)/_tSF << std::endl;
-                    std::cout << "    " << std::endl;
+                    if(_plot == "alpha")
+                    {
+                        tC(d, c) = tInterp(indexTC);
+                        //output the critical temperature
+                        std::cout << "    " << std::endl;
+                        std::cout << "Tc: "<< tC(d,c) << std::endl;
+                        std::cout << "Tc/Tsf: " << tC(d,c)/_tSF << std::endl;
+                        std::cout << "    " << std::endl;
+                    }
+                    else
+                    {
+                        tC(a, b) = tInterp(indexTC);
+                        //output the critical temperature
+                        std::cout << "    " << std::endl;
+                        std::cout << "Tc: "<< tC(a,b) << std::endl;
+                        std::cout << "Tc/Tsf: " << tC(a,b)/_tSF << std::endl;
+                        std::cout << "    " << std::endl;
+                    }
                 }
             }
         }      
     } 
 
     //output k/g data if relevant
-    if(lenKSample > 1)
+    if(lenKSample > 1 && _plot == "k")
     {
         std::cout << "k: " << std::endl;
         _kSquaredSample.t().print();
@@ -873,7 +964,7 @@ void Eliashberg::SolveEliashberg()
         (tC/_tSF).t().print();
     }
 
-    if(lenGSample > 1)
+    if(lenGSample > 1 && _plot == "g")
     {
         std::cout << "g: " << std::endl;
         _gSquaredChi0tSample.t().print();
@@ -918,9 +1009,22 @@ void Eliashberg::SolveEliashberg()
 
         outputData.save("kData_g" + std::to_string(_gSquaredChi0tSample[0]) + "_" + _magModel, arma::csv_ascii);
     }
+    else if(_plot == "kg")
+    {
+        arma::mat outputData = _ScaleTC(tC, _kSquaredSample, _gSquaredChi0tSample);
+
+        outputData.save("kgData_" + _magModel, arma::csv_ascii);
+    }
+    else if(_plot == "alpha")
+    {
+        arma::mat outputData = _ScaleTC(tC, _alphaMSample, _alphaTSample);
+
+        outputData.save("alphaData_" + _magModel, arma::csv_ascii);
+
+    }
     else
     {
-        std::cout << "Incorrect plotting values, please set plot to either g or k" << std::endl;
+        std::cout << "Incorrect plotting values, please set plot to either g, k, kg or alpha" << std::endl;
         exit(1);
     }
 
@@ -1407,10 +1511,9 @@ void Eliashberg::_DeleteDFTPlans()
  * 
  * @param qX A vector containing the momentum in the x direction
  * @param qY A vector conaining the momentum in the y direction
- * @param qZ A vector conaining the momentum in the z direction
  * @return phi A cube containing the data for phi
  */
-std::vector<arma::cube> Eliashberg::_PhiFun(const arma::vec& qX, const arma::vec& qY, const arma::vec& qZ)
+std::vector<arma::cube> Eliashberg::_PhiFun(const arma::vec& qX, const arma::vec& qY)
 {
 
     std::vector<arma::cube> phi(2*_n0);
@@ -1485,10 +1588,9 @@ std::vector<arma::cube> Eliashberg::_PhiFun(const arma::vec& qX, const arma::vec
  * 
  * @param qX A vector containing the momentum in the x direction
  * @param qY A vector conaining the momentum in the y direction
- * @param qZ A vector conaining the momentum in the z direction
  * @return phi A cube containing the data for symmetric phi
  */
-std::vector<arma::cube> Eliashberg::_PhiSymm(const arma::vec& qX, const arma::vec& qY, const arma::vec& qZ)
+std::vector<arma::cube> Eliashberg::_PhiSymm(const arma::vec& qX, const arma::vec& qY)
 {
 
     std::vector<arma::cube> phi(2*_n0);
@@ -1612,6 +1714,48 @@ std::vector<arma::cube> Eliashberg::_SymmByFiltLabel(std::vector<arma::cube>& ma
 
     return matrixS;
 
+}
+
+/**
+ * @brief Add scales to temperature output
+ * 
+ * @param in input temperature
+ * @param xScale scale for the rows
+ * @param yScale scale for the columns
+ * @return scaledMat: the temperature matrix with scales for plotting
+ */
+arma::mat Eliashberg::_ScaleTC(const arma::mat& in, const arma::vec& xScale, const arma::vec& yScale)
+{
+    arma::mat scaledMat = in;
+
+    //normalise
+    scaledMat /= _tSF;
+    
+    //generate containers to store axis data, width is offset by one to keep matrix rectangular
+    int width = xScale.size();
+
+    arma::rowvec xScaleAxis;
+    xScaleAxis.set_size(width + 1);
+
+
+    //shift axes that they are centred on zero
+    for(int i = 0; i < width + 1; i++)
+    {
+        if(i == 0)
+        {
+            xScaleAxis[i] = 0;
+        }
+        else
+        {
+            xScaleAxis[i] = xScale[i - 1];
+        }
+    }
+
+    //append to grating matrix. This is slow, must look into faster methods. 
+    scaledMat.insert_cols(0, yScale);
+    scaledMat.insert_rows(0, xScaleAxis);
+
+    return scaledMat;
 }
 
 
@@ -2054,26 +2198,6 @@ std::vector<arma::cube> SymmetriseA(std::vector<arma::cube>& in)
 
 }
 
-
-/**
- * @brief Function to symmetrise a cube
- * 
- * @param in the cube to be symmetrised
- * @return out the symmetrised cube
- */
-std::vector<arma::cube> SymmetriseB(std::vector<arma::cube>& in)
-{
-    //create cube to be tranposed
-    int length = in.size();
-
-    std::vector<arma::cube> transposeIn;
-    std::vector<arma::cube> out(length);
-
-    return out;
-
-}
-
-
 /**
  * @brief Function to symmetrise a cube
  * 
@@ -2085,8 +2209,22 @@ std::vector<arma::cx_cube> SymmetriseB(std::vector<arma::cx_cube>& in)
     //create cube to be tranposed
     int length = in.size();
 
-    std::vector<arma::cube> transposeIn;
+    arma::cx_cube symm1;
+    arma::cx_cube symm2;
+    arma::cx_cube symm3;
+    arma::cx_cube symm4;
+    arma::cx_cube symm5;
     std::vector<arma::cx_cube> out(length);
+
+    for(int i = 0; i < length; i++)
+    {
+        symm1 = Permute(in[i], "213");
+        symm2 = Permute(in[i], "231");
+        symm3 = Permute(in[i], "312");
+        symm4 = Permute(in[i], "321");
+        symm5 = Permute(in[i], "132");
+        out[i] = (in[i] + symm1 + symm2 + symm3 + symm4 + symm5)/6.0; 
+    }
 
     return out;
 
@@ -2360,9 +2498,10 @@ void Interpolate1D(const arma::vec& vectorIn, const arma::vec& vectorCoordsIn, a
  * @param xi x coordinates for interpolation
  * @param yi y coorindates for interpolation
  * @param zi z coordaintes for interpolation
+ * @param method cubic or linear
  * @return interp the interpolated input matrix
  */
-arma::cube Interpolate3D(const arma::vec& x, const arma::vec& y, const arma::vec& z, const arma::cube& in, const arma::vec& xi, const arma::vec& yi, const arma::vec& zi)
+arma::cube Interpolate3D(const arma::vec& x, const arma::vec& y, const arma::vec& z, const arma::cube& in, const arma::vec& xi, const arma::vec& yi, const arma::vec& zi, const std::string& method)
 {
     //set interpolated cube
     //temporary cube for in plane interpolation
@@ -2398,15 +2537,20 @@ arma::cube Interpolate3D(const arma::vec& x, const arma::vec& y, const arma::vec
 
             //interpolate data
             //arma::interp1(z, initData, zi, interpData);
-            Interpolate1D(initData, z, interpData, zi, "cubic");
+            Interpolate1D(initData, z, interpData, zi, method);
 
             //linear extrapolation if the data is outside region
-            /************************************
-             * 
-             * This needs to be made better so it actually catches all cases
-             * 
-             * ***********************************/
             if(interpData.has_nan() == true)
+            {
+                arma::uvec nonFiniteCoords = arma::find_nonfinite(interpData);
+
+                if(nonFiniteCoords[0] == 0 && nonFiniteCoords[nonFiniteCoords.size() - 1] == interpData.size() - 1)
+                {
+                    interpData[0] = 2.0*interpData[1] - interpData[2];
+                    interpData[interpData.size() - 1] = 2.0*interpData[interpData.size() - 2] - interpData[interpData.size() - 3];
+                }
+            }
+            else if(interpData[0] == 0 && interpData[interpData.size() - 1] == 0)
             {
                 interpData[0] = 2.0*interpData[1] - interpData[2];
                 interpData[interpData.size() - 1] = 2.0*interpData[interpData.size() - 2] - interpData[interpData.size() - 3];
@@ -2433,9 +2577,10 @@ arma::cube Interpolate3D(const arma::vec& x, const arma::vec& y, const arma::vec
  * @param yi y coorindates for interpolation
  * @param zi z coordaintes for interpolation
  * @param wi w coordaintes for interpolation
+ * @param method cubic or linear
  * @return interp the interpolated input matrix
  */
-std::vector<arma::cube> Interpolate4D(const arma::vec& x, const arma::vec& y, const arma::vec& z, const arma::vec& w, const std::vector<arma::cube>& in, const arma::vec& xi, const arma::vec& yi, const arma::vec& zi, const arma::vec& wi)
+std::vector<arma::cube> Interpolate4D(const arma::vec& x, const arma::vec& y, const arma::vec& z, const arma::vec& w, const std::vector<arma::cube>& in, const arma::vec& xi, const arma::vec& yi, const arma::vec& zi, const arma::vec& wi, const std::string& method)
 {
     //set interpolated cube
     //temporary cube for in plane interpolation
@@ -2478,15 +2623,20 @@ std::vector<arma::cube> Interpolate4D(const arma::vec& x, const arma::vec& y, co
 
                     //interpolate data
                     //arma::interp1(z, initData, zi, interpData);
-                    Interpolate1D(initData, x, interpData, xi, "cubic");
+                    Interpolate1D(initData, x, interpData, xi, method);
 
                     //linear extrapolation if the data is outside region
-                    /************************************
-                     * 
-                     * This needs to be made better so it actually catches all cases
-                     * 
-                     * ***********************************/
                     if(interpData.has_nan() == true)
+                    {
+                        arma::uvec nonFiniteCoords = arma::find_nonfinite(interpData);
+
+                        if(nonFiniteCoords[0] == 0 && nonFiniteCoords[nonFiniteCoords.size() - 1] == interpData.size() - 1)
+                        {
+                            interpData[0] = 2.0*interpData[1] - interpData[2];
+                            interpData[interpData.size() - 1] = 2.0*interpData[interpData.size() - 2] - interpData[interpData.size() - 3];
+                        }
+                    }
+                    else if(interpData[0] == 0 && interpData[interpData.size() - 1] == 0)
                     {
                         interpData[0] = 2.0*interpData[1] - interpData[2];
                         interpData[interpData.size() - 1] = 2.0*interpData[interpData.size() - 2] - interpData[interpData.size() - 3];
@@ -2504,15 +2654,20 @@ std::vector<arma::cube> Interpolate4D(const arma::vec& x, const arma::vec& y, co
 
                     //interpolate data
                     //arma::interp1(z, initData, zi, interpData);
-                    Interpolate1D(initData, y, interpData, yi, "cubic");
+                    Interpolate1D(initData, y, interpData, yi, method);
 
                     //linear extrapolation if the data is outside region
-                    /************************************
-                     * 
-                     * This needs to be made better so it actually catches all cases
-                     * 
-                     * ***********************************/
                     if(interpData.has_nan() == true)
+                    {
+                        arma::uvec nonFiniteCoords = arma::find_nonfinite(interpData);
+
+                        if(nonFiniteCoords[0] == 0 && nonFiniteCoords[nonFiniteCoords.size() - 1] == interpData.size() - 1)
+                        {
+                            interpData[0] = 2.0*interpData[1] - interpData[2];
+                            interpData[interpData.size() - 1] = 2.0*interpData[interpData.size() - 2] - interpData[interpData.size() - 3];
+                        }
+                    }
+                    else if(interpData[0] == 0 && interpData[interpData.size() - 1] == 0)
                     {
                         interpData[0] = 2.0*interpData[1] - interpData[2];
                         interpData[interpData.size() - 1] = 2.0*interpData[interpData.size() - 2] - interpData[interpData.size() - 3];
@@ -2535,15 +2690,20 @@ std::vector<arma::cube> Interpolate4D(const arma::vec& x, const arma::vec& y, co
 
                     //interpolate data
                     //arma::interp1(z, initData, zi, interpData);
-                    Interpolate1D(initData, z, interpData, zi, "cubic");
+                    Interpolate1D(initData, z, interpData, zi, method);
 
                     //linear extrapolation if the data is outside region
-                    /************************************
-                     * 
-                     * This needs to be made better so it actually catches all cases
-                     * 
-                     * ***********************************/
                     if(interpData.has_nan() == true)
+                    {
+                        arma::uvec nonFiniteCoords = arma::find_nonfinite(interpData);
+
+                        if(nonFiniteCoords[0] == 0 && nonFiniteCoords[nonFiniteCoords.size() - 1] == interpData.size() - 1)
+                        {
+                            interpData[0] = 2.0*interpData[1] - interpData[2];
+                            interpData[interpData.size() - 1] = 2.0*interpData[interpData.size() - 2] - interpData[interpData.size() - 3];
+                        }
+                    }
+                    else if(interpData[0] == 0 && interpData[interpData.size() - 1] == 0)
                     {
                         interpData[0] = 2.0*interpData[1] - interpData[2];
                         interpData[interpData.size() - 1] = 2.0*interpData[interpData.size() - 2] - interpData[interpData.size() - 3];
@@ -2576,15 +2736,20 @@ std::vector<arma::cube> Interpolate4D(const arma::vec& x, const arma::vec& y, co
 
                 //interpolate data
                 //arma::interp1(z, initData, zi, interpData);
-                Interpolate1D(initData, w, interpData, wi, "cubic");
+                Interpolate1D(initData, w, interpData, wi, method);
 
                 //linear extrapolation if the data is outside region
-                /************************************
-                 * 
-                 * This needs to be made better so it actually catches all cases
-                 * 
-                 * ***********************************/
                 if(interpData.has_nan() == true)
+                {
+                    arma::uvec nonFiniteCoords = arma::find_nonfinite(interpData);
+
+                    if(nonFiniteCoords[0] == 0 && nonFiniteCoords[nonFiniteCoords.size() - 1] == interpData.size() - 1)
+                    {
+                        interpData[0] = 2.0*interpData[1] - interpData[2];
+                        interpData[interpData.size() - 1] = 2.0*interpData[interpData.size() - 2] - interpData[interpData.size() - 3];
+                    }
+                }
+                else if(interpData[0] == 0 && interpData[interpData.size() - 1] == 0)
                 {
                     interpData[0] = 2.0*interpData[1] - interpData[2];
                     interpData[interpData.size() - 1] = 2.0*interpData[interpData.size() - 2] - interpData[interpData.size() - 3];
@@ -2662,6 +2827,64 @@ std::vector<arma::cx_cube> Make4D(const arma::cx_vec& in, const std::vector<arma
 }
 
 /**
+ * @brief General permutation function for a cube
+ * 
+ * @param in cube to be permuted
+ * @param order order of permutation
+ * @return out: permuted cube
+ */
+arma::cx_cube Permute(const arma::cx_cube& in, const std::string& order)
+{
+    arma::cx_cube out;
+    arma::cx_cube tmp;
+
+    if(order == "132")
+    {
+        out = permute23Comp(in);
+    }
+    else if(order == "213")
+    {
+        //regular tranpose
+        //tranpose each slice within the cube
+        out = in;
+        out.each_slice([](arma::cx_mat& tempA){tempA = tempA.st();});
+    }
+    else if(order == "231")
+    {
+        //regular tranpose + permute 23
+        //tranpose each slice within the cube
+        tmp = in;
+        tmp.each_slice([](arma::cx_mat& tempA){tempA = tempA.st();});
+        out = permute23Comp(tmp);
+    }
+    else if(order == "321")
+    {
+        //regular tranpose + permute 23
+        //tranpose each slice within the cube
+        tmp = in;
+        tmp.each_slice([](arma::cx_mat& tempA){tempA = tempA.st();});
+        out = permute23Comp(tmp);
+        out.each_slice([](arma::cx_mat& tempA){tempA = tempA.st();});
+    }
+    else if(order == "312")
+    {
+        //regular tranpose + permute 23
+        //tranpose each slice within the cube
+        tmp = in;
+        out = permute23Comp(tmp);
+        out.each_slice([](arma::cx_mat& tempA){tempA = tempA.st();});
+    }
+    else
+    {
+        std::cout << "Undefined permutation order" << std::endl;
+        exit(1);
+    }
+
+    return out;
+}
+
+
+/**
  * @brief Template to determine the sign of a number
  * 
  * @tparam T 
@@ -2672,6 +2895,71 @@ template <typename T> int sgn(T x)
 {
     return (T(0) < x) - (x < T(0));
 }
+
+
+/**
+ * @brief Permutation template for cubes
+ * 
+ * @tparam T 
+ * @param cube 
+ * @return Cube<T> 
+ */
+template <typename T>
+static arma::Cube<T> permute23(const arma::Cube<T> &cube)
+{
+    const arma::uword d1 = cube.n_rows;
+    const arma::uword d2 = cube.n_cols;
+    const arma::uword d3 = cube.n_slices;
+    const arma::uword d1TimesD3 = d1 * d3;
+    const arma::Cube<T> output(d1, d3, d2);
+
+    const T *from = cube.memptr();
+    T *to = (double*)(output.memptr());
+
+    for (arma::uword s = 0; s < d3; ++s){
+        T *tmp = to + d1 * s;
+        for (arma::uword c = 0; c < d2; ++c){
+            memcpy(tmp, from, d1 * sizeof(*from));
+            from += d1;
+            tmp += d1TimesD3;
+        }
+    }
+
+    return output;
+}
+
+
+/**
+ * @brief Permutation template for cubes
+ * 
+ * @tparam T 
+ * @param cube 
+ * @return Cube<T> 
+ */
+template <typename T>
+static arma::Cube<T> permute23Comp(const arma::Cube<T> &cube)
+{
+    const arma::uword d1 = cube.n_rows;
+    const arma::uword d2 = cube.n_cols;
+    const arma::uword d3 = cube.n_slices;
+    const arma::uword d1TimesD3 = d1 * d3;
+    const arma::Cube<T> output(d1, d3, d2);
+
+    const T *from = cube.memptr();
+    T *to = (std::complex<double>*)(output.memptr());
+
+    for (arma::uword s = 0; s < d3; ++s){
+        T *tmp = to + d1 * s;
+        for (arma::uword c = 0; c < d2; ++c){
+            memcpy(tmp, from, d1 * sizeof(*from));
+            from += d1;
+            tmp += d1TimesD3;
+        }
+    }
+
+    return output;
+}
+
 
 /**
  * @brief Extern capabilities to allow interfacing with python code

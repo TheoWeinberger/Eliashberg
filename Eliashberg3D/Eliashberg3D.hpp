@@ -326,10 +326,9 @@ private:
      * 
      * @param qX A vector containing the momentum in the x direction
      * @param qY A vector conaining the momentum in the y direction
-     * @param qZ A vector conaining the momentum in the z direction
      * @return phi A cube containing the data for phi
      */
-    std::vector<arma::cube> _PhiFun(const arma::vec&, const arma::vec&, const arma::vec&);
+    std::vector<arma::cube> _PhiFun(const arma::vec&, const arma::vec&);
 
     /**
      * @brief Calculate the symmetric phi function used to iteratively calculate the eigenalue lambda
@@ -337,10 +336,9 @@ private:
      * 
      * @param qX A vector containing the momentum in the x direction
      * @param qY A vector conaining the momentum in the y direction
-     * @param qZ A vector conaining the momentum in the z direction
      * @return phi A cube containing the data for symmetric phi
      */
-    std::vector<arma::cube> _PhiSymm(const arma::vec&, const arma::vec&, const arma::vec&);
+    std::vector<arma::cube> _PhiSymm(const arma::vec&, const arma::vec&);
 
     /**
      * @brief A function to symmetrise a matrix according to its symmetry model (s, p ,d)
@@ -353,6 +351,16 @@ private:
      * @return matrix S The output symmetrised matrix
      */
     std::vector<arma::cube> _SymmByFiltLabel(std::vector<arma::cube>&, const std::vector<arma::cube>&);
+
+    /**
+     * @brief Add scales to temperature output
+     * 
+     * @param in input temperature
+     * @param xScale scale for the rows
+     * @param yScale scale for the columns
+     * @return scaledMat: the temperature matrix with scales for plotting
+     */
+    arma::mat _ScaleTC(const arma::mat& in, const arma::vec& xScale, const arma::vec& yScale);
 
     /**
      * @brief t: the tight binding hopping matrix element in meV 
@@ -896,9 +904,10 @@ void Interpolate1D(const arma::vec& vectorIn, const arma::vec& vectorCoordsIn, a
  * @param xi x coordinates for interpolation
  * @param yi y coorindates for interpolation
  * @param zi z coordaintes for interpolation
+ * @param method cubic or linear
  * @return interp the interpolated input matrix
  */
-arma::cube Interpolate3D(const arma::vec& x, const arma::vec& y, const arma::vec& z, const arma::cube& in, const arma::vec& xi, const arma::vec& yi, const arma::vec& zi);
+arma::cube Interpolate3D(const arma::vec& x, const arma::vec& y, const arma::vec& z, const arma::cube& in, const arma::vec& xi, const arma::vec& yi, const arma::vec& zi, const std::string& method);
 
 
 /**
@@ -913,9 +922,10 @@ arma::cube Interpolate3D(const arma::vec& x, const arma::vec& y, const arma::vec
  * @param yi y coorindates for interpolation
  * @param zi z coordaintes for interpolation
  * @param wi w coordaintes for interpolation
+ * @param method cubic or linear
  * @return interp the interpolated input matrix
  */
-std::vector<arma::cube> Interpolate4D(const arma::vec& x, const arma::vec& y, const arma::vec& z, const arma::vec& w, const std::vector<arma::cube>& in, const arma::vec& xi, const arma::vec& yi, const arma::vec& zi, const arma::vec& wi);
+std::vector<arma::cube> Interpolate4D(const arma::vec& x, const arma::vec& y, const arma::vec& z, const arma::vec& w, const std::vector<arma::cube>& in, const arma::vec& xi, const arma::vec& yi, const arma::vec& zi, const arma::vec& wi, const std::string& method);
 
 
 /**
@@ -935,6 +945,16 @@ arma::cx_vec Flatten(const std::vector<arma::cx_cube>& in);
  * @return out: 4d matrix
  */
 std::vector<arma::cx_cube> Make4D(const arma::cx_vec& in, const std::vector<arma::cx_cube>& sizeMatch);
+
+/**
+ * @brief General permutation function for a cube
+ * 
+ * @param in cube to be permuted
+ * @param order order of permutation
+ * @return out: permuted cube
+ */
+arma::cx_cube Permute(const arma::cx_cube& in, const std::string& order);
+
 /**
  * @brief Template to determine the sign of a number
  * 
@@ -943,5 +963,27 @@ std::vector<arma::cx_cube> Make4D(const arma::cx_vec& in, const std::vector<arma
  * @return int 
  */
 template <typename T> int sgn(T x);
+
+
+/**
+ * @brief Permutation template for cubes
+ * 
+ * @tparam T 
+ * @param cube 
+ * @return Cube<T> 
+ */
+template <typename T>
+static arma::Cube<T> permute23(const arma::Cube<T> &cube);
+
+
+/**
+ * @brief Permutation template for cubes
+ * 
+ * @tparam T 
+ * @param cube 
+ * @return Cube<T> 
+ */
+template <typename T>
+static arma::Cube<T> permute23Comp(const arma::Cube<T> &cube);
 
 #endif
