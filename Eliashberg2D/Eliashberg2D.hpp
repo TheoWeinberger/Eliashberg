@@ -60,6 +60,9 @@
  * 
  */
 
+#ifndef ELIASHBERG2D_H
+#define ELIASHBERG2D_H
+
 //calls for arma to make it faster
 #define ARMA_NO_DEBUG
 #define ARMA_USE_MKL_ALLOC
@@ -86,10 +89,6 @@
 #include <stdio.h>
 #include <libalglib/interpolation.h>
 #include <mkl.h>
-
-#ifndef ELIASHBERG2D_H
-#define ELIASHBERG2D_H
-
 
 /**
  * @brief A class object that is used to solve the Eliashberg equations for given 

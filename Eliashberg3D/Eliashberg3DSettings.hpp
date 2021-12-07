@@ -45,7 +45,8 @@ void ReadVector(arma::vec& myVector, const libconfig::Setting& mySetting);
  * @param t the tight binding hopping matrix element in meV 
  * @param ratioTight the ratio of tight-binding hopping elements tPrime/t
  * @param a The side length of a square lattice unit cell
- * @param alphaT The measure of cell tetragonality
+ * @param alphaTSample The measure of cell tetragonality
+ * @param alphaMSample The measure of cell tetragonality
  * @param doping The doping, calculated by Luttinger's therorem
  * @param magModel Whether the FM or AFM model is being used, takes values FM or AFM
  * @param phiModel The model being used for the anomalous self energy, takes values s, p, d
@@ -69,6 +70,6 @@ void ReadVector(arma::vec& myVector, const libconfig::Setting& mySetting);
  * @param relaxation  Whether we are plotting with respect to k or g2chi0t takes values of k or g
  * @return int Exit code
  */
-int ReadFile(const std::string& fileName, double& t, double& ratioTight, double& a, double& alphaT, double& doping, std::string& magModel, std::string& phiModel, double& chi0, double& k0Squared, double& tSF, arma::vec& gSquaredChi0tSample, arma::vec& kSquaredSample, double& t0, int& n0, double& omegaC, int& nK, double& errSigma, double& errLambda, int& maxIter, double& phiRatio, bool& symm, int& maxMuIter, int& numLambdaSeg, std::string& plot, arma::vec& relaxation);
+int ReadFile(const std::string& fileName, double& t, double& ratioTight, double& a, arma::vec& alphaTSample, arma::vec& alphaMSample, double& doping, std::string& magModel, std::string& phiModel, double& chi0, double& k0Squared, double& tSF, arma::vec& gSquaredChi0tSample, arma::vec& kSquaredSample, double& t0, int& n0, double& omegaC, int& nK, double& errSigma, double& errLambda, int& maxIter, double& phiRatio, bool& symm, int& maxMuIter, int& numLambdaSeg, std::string& plot, arma::vec& relaxation);
 
 #endif

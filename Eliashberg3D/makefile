@@ -1,11 +1,11 @@
 CXX=icpx
-CXXFLAGS=-Ofast -Wall -Wextra -std=c++14 -fopenmp
+CXXFLAGS=-Ofast -Wall -Wextra -std=c++14 -fopenmp -g
 LIBS= -larmadillo -mkl=parallel -lconfig++ -lgsl -lgslcblas -lalglib
-DEPS = Eliashberg2D.hpp Eliashberg2DSettings.hpp
-OBJ = Eliashberg2D.o Eliashberg2DSettings.o Eliashberg2DMain.o 
+DEPS = Eliashberg3D.hpp Eliashberg3DSettings.hpp
+OBJ = Eliashberg3D.o Eliashberg3DSettings.o Eliashberg3DMain.o 
 
 /%.o: %cpp $(DEPS)
 	$(CXX) -c $@ $< $(CXXFLAGS) 
 
-eliashberg2D: $(OBJ)
+eliashberg3D: $(OBJ)
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LIBS)

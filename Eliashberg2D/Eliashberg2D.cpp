@@ -2041,23 +2041,74 @@ arma::cube Interpolate3D(const arma::vec& x, const arma::vec& y, const arma::vec
 {
     //set interpolated cube
     //temporary cube for in plane interpolation
-    arma::cube interpTemp(xi.size(), yi.size(), z.size());
+    arma::cube interpTemp1(xi.size(), y.size(), z.size());
+    arma::cube interpTemp2(xi.size(), yi.size(), z.size());
     //final interpolation
     arma::cube interp(xi.size(), yi.size(), zi.size());
 
     //only interpolate if necessary
     if(accu(abs(x - xi)) == 0 && accu(abs(y - yi)) == 0)
     {
-        interpTemp = in;
+        interpTemp2 = in;
     }
     else
     {
         //interpolate in the x-y plane
         for(unsigned int i = 0; i < z.size(); i++)
         {
-            arma::interp2(x, y, in.slice(i), xi, yi, interpTemp.slice(i));
-        }
+            for(unsigned int j = 0; j < y.size(); j++)
+            {
+                arma::vec initData = in.slice(i).col(j);
 
+                //holder for interpolated data
+                arma::vec interpData;
+
+                //interpolate data
+                //arma::interp1(z, initData, zi, interpData);
+                Interpolate1D(initData, x, interpData, xi, "cubic");
+
+                //linear extrapolation if the data is outside region
+                /************************************
+                 * 
+                 * This needs to be made better so it actually catches all cases
+                 * 
+                 * ***********************************/
+                if(interpData.has_nan() == true)
+                {
+                    interpData[0] = 2.0*interpData[1] - interpData[2];
+                    interpData[interpData.size() - 1] = 2.0*interpData[interpData.size() - 2] - interpData[interpData.size() - 3];
+                }
+
+                interpTemp1.slice(i).col(j) = interpData;                
+            }
+
+            for(unsigned int j = 0; j < xi.size(); j++)
+            {
+                arma::vec initData = in.slice(i).row(j);
+
+                //holder for interpolated data
+                arma::vec interpData;
+
+                //interpolate data
+                //arma::interp1(z, initData, zi, interpData);
+                Interpolate1D(initData, y, interpData, yi, "cubic");
+
+                //linear extrapolation if the data is outside region
+                /************************************
+                 * 
+                 * This needs to be made better so it actually catches all cases
+                 * 
+                 * ***********************************/
+                if(interpData.has_nan() == true)
+                {
+                    interpData[0] = 2.0*interpData[1] - interpData[2];
+                    interpData[interpData.size() - 1] = 2.0*interpData[interpData.size() - 2] - interpData[interpData.size() - 3];
+                }
+
+                interpTemp1.slice(i).row(j) = interpData;                
+            }
+
+        }
     }
 
     //interpolate across z axis
@@ -2066,7 +2117,7 @@ arma::cube Interpolate3D(const arma::vec& x, const arma::vec& y, const arma::vec
         for(unsigned int i = 0; i < yi.size(); i++)
         {
 
-            arma::vec initData = interpTemp.tube(i,j);
+            arma::vec initData = interpTemp2.tube(i,j);
 
             //holder for interpolated data
             arma::vec interpData;

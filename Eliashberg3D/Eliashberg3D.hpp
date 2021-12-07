@@ -301,16 +301,18 @@ private:
      * 
      * @param in The matrix being transformed
      * @param out The output matrix of the DFT
+     * @param n array containing dimesions
      */
-    void _SetDFTPlans(const std::vector<arma::cx_cube>&, const std::vector<arma::cx_cube>&);
+    void _SetDFTPlans(const arma::cx_vec& in, const arma::cx_vec& out, const int n[]);
 
     /**
      * @brief Function to set DFT plans for the matsubara frequency convolution
      * 
      * @param in The matrix being transformed
      * @param out The output matrix of the DFT
+     * @param n array containing dimesions
      */
-    void _SetDFTPlansRG(const std::vector<arma::cx_cube>& in, const std::vector<arma::cx_cube>& out);
+    void _SetDFTPlansRG(const arma::cx_vec& in, const arma::cx_vec& out, const int n[]);
 
     /**
      * @brief Function to delete DFT plans for the matsubara frequency convolution
@@ -350,7 +352,7 @@ private:
      * @param filter The symmetry filter
      * @return matrix S The output symmetrised matrix
      */
-    std::vector<arma::cube> _SymmByFiltLabel(arma::cube&, const arma::cube&);
+    std::vector<arma::cube> _SymmByFiltLabel(std::vector<arma::cube>&, const std::vector<arma::cube>&);
 
     /**
      * @brief t: the tight binding hopping matrix element in meV 
@@ -381,6 +383,26 @@ private:
      * 
      */
     double _alphaT;
+
+    /**
+     * @brief alphaM: The assymetry in the z direction (a measure of tetragonality)
+     * 
+     */
+    double _alphaM;
+
+    /**
+     * @brief alphaTSample: Vector containing values of alphaT,
+     * The assymetry in the z direction (a measure of tetragonality)
+     * 
+     */
+    arma::vec _alphaTSample;
+
+    /**
+     * @brief alphaMSample: Vector containing values of alphaM,
+     * The assymetry in the z direction (a measure of tetragonality)
+     * 
+     */
+    arma::vec _alphaMSample;
 
     /**
      * @brief t0: Initial temperature
@@ -442,6 +464,12 @@ private:
      * 
      */
     std::string _phiModel;
+
+    /**
+     * @brief symmType:The model being used for the symmetrisation of sigma, either type A or B
+     * 
+     */
+    int _symmType;
 
     /**
      * @brief errSigma: The relative tolerance for the termination criteria for the convergence in calculating sigma
@@ -578,7 +606,7 @@ struct NTotalEvalParams
     double t; 
 
     //energy
-    arma::mat energy; 
+    arma::cube energy; 
 
     //k space sampling
     int nK; 
@@ -595,7 +623,7 @@ struct NTotalEvalParams
  * @param t the temperature
  * @return arma::mat nFermiMat matrix of the nFermi at each sampling point
  */
-arma::mat NFermi(const double& mu, const double& t, const arma::mat& energy);
+arma::cube NFermi(const double& mu, const double& t, const arma::cube& energy);
 
 
 /**
@@ -606,7 +634,7 @@ arma::mat NFermi(const double& mu, const double& t, const arma::mat& energy);
  * @param t the temperature
  * @return double nFermiMat matrix of the derivative of nFermi at each sampling point
  */
-arma::mat NFermiDeriv(const double& mu, const double& t, const arma::mat& energy); 
+arma::cube NFermiDeriv(const double& mu, const double& t, const arma::cube& energy); 
 
 
 /**
@@ -688,6 +716,17 @@ arma::cx_cube PadCube(arma::cx_cube& a, const int& nSlices, const double& val);
 
 
 /**
+ * @brief Function to pad a cube with slices of of value = val
+ * 
+ * @param a The cube being padded
+ * @param n The 'thickness' of the padding i.e. the number cubes being padded with
+ * @param val The value being padded with
+ * @return paddedA The padded cube
+ */
+std::vector<arma::cx_cube> Pad(std::vector<arma::cx_cube>& a, const int& n, const double& val);
+
+
+/**
  * @brief Construct a complex cube out of the real inptu data
  * 
  * @param in a real cube 
@@ -697,12 +736,21 @@ arma::cx_cube RealToComplex(const arma::cube& in);
 
 
 /**
+ * @brief Construct a complex cube out of the real inptu data
+ * 
+ * @param in a real cube 
+ * @return out a complex cube with imaginary part 0 and real part equal to in
+ */
+std::vector<arma::cx_cube> RealToComplex(const std::vector<arma::cube>& in);
+
+
+/**
  * @brief Function to symmetrise a complex cube
  * 
  * @param in the complex cube to be symmetrised
  * @return out the symmetrised cube
  */
-arma::cx_cube Symmetrise(arma::cx_cube& in);
+std::vector<arma::cx_cube> SymmetriseA(std::vector<arma::cx_cube>& in);
 
 
 /**
@@ -711,7 +759,25 @@ arma::cx_cube Symmetrise(arma::cx_cube& in);
  * @param in the cube to be symmetrised
  * @return out the symmetrised cube
  */
-arma::cube Symmetrise(arma::cube& in);
+std::vector<arma::cube> SymmetriseA(std::vector<arma::cube>& in);
+
+
+/**
+ * @brief Function to symmetrise a complex cube
+ * 
+ * @param in the complex cube to be symmetrised
+ * @return out the symmetrised cube
+ */
+std::vector<arma::cx_cube> SymmetriseB(std::vector<arma::cx_cube>& in);
+
+
+/**
+ * @brief Function to symmetrise a cube
+ * 
+ * @param in the cube to be symmetrised
+ * @return out the symmetrised cube
+ */
+std::vector<arma::cube> SymmetriseB(std::vector<arma::cube>& in);
 
 
 /**
@@ -738,7 +804,7 @@ arma::cx_cube Transpose(arma::cx_cube& in);
  * @param in input cube
  * @return out cleaned cube
  */
-arma::cube CleanDiagonal(arma::cube& in);
+std::vector<arma::cube> CleanDiagonal(std::vector<arma::cube>& in);
 
 
 /**
@@ -747,7 +813,7 @@ arma::cube CleanDiagonal(arma::cube& in);
  * @param in input cube
  * @return out cleaned cube
  */
-arma::cx_cube CleanDiagonal(arma::cx_cube& in);
+std::vector<arma::cx_cube> CleanDiagonal(std::vector<arma::cx_cube>& in);
 
 
 /**
@@ -834,6 +900,41 @@ void Interpolate1D(const arma::vec& vectorIn, const arma::vec& vectorCoordsIn, a
  */
 arma::cube Interpolate3D(const arma::vec& x, const arma::vec& y, const arma::vec& z, const arma::cube& in, const arma::vec& xi, const arma::vec& yi, const arma::vec& zi);
 
+
+/**
+ * @brief 4D linear interpolation for a cube object
+ * 
+ * @param x original x coordinates
+ * @param y original y coordinates
+ * @param z original z coordinates
+ * @param w original frequency coordinates
+ * @param in input gridded cube
+ * @param xi x coordinates for interpolation
+ * @param yi y coorindates for interpolation
+ * @param zi z coordaintes for interpolation
+ * @param wi w coordaintes for interpolation
+ * @return interp the interpolated input matrix
+ */
+std::vector<arma::cube> Interpolate4D(const arma::vec& x, const arma::vec& y, const arma::vec& z, const arma::vec& w, const std::vector<arma::cube>& in, const arma::vec& xi, const arma::vec& yi, const arma::vec& zi, const arma::vec& wi);
+
+
+/**
+ * @brief Function to flatten a vector of cubes into one vecotr
+ * 
+ * @param in a vector of cubes
+ * @return out: a column vector
+ */
+arma::cx_vec Flatten(const std::vector<arma::cx_cube>& in);
+
+
+/**
+ * @brief Function to make a column vector 4D, matching the size of another 4D object
+ * 
+ * @param in a column vector
+ * @param sizeMatch system to match the size d 
+ * @return out: 4d matrix
+ */
+std::vector<arma::cx_cube> Make4D(const arma::cx_vec& in, const std::vector<arma::cx_cube>& sizeMatch);
 /**
  * @brief Template to determine the sign of a number
  * 
