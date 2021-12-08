@@ -9,3 +9,9 @@ OBJ = Eliashberg2D.o Eliashberg2DSettings.o Eliashberg2DMain.o
 
 eliashberg2D: $(OBJ)
 	$(CXX) -o $@ $^ $(CXXFLAGS) $(LIBS)
+
+#clean
+.PHONY: clean
+
+clean:
+	-rm $(OBJ)   

@@ -363,7 +363,7 @@ void Eliashberg::SolveEliashberg()
     arma::vec lambdaVec;
 
     //direct test against Ran code
-    muArray = {1.852935461551102e+02,108.578641736149,94.6635609987612,110.255073698169,131.715764552851,145.752034210909,151.043635672090,152.067024877566,152.404983516244,152.193764044987,151.640222096965};
+    //muArray = {1.852935461551102e+02,108.578641736149,94.6635609987612,110.255073698169,131.715764552851,145.752034210909,151.043635672090,152.067024877566,152.404983516244,152.193764044987,151.640222096965};
 
     for(int a = 0; a < lenKSample; a++)
     {
@@ -375,7 +375,7 @@ void Eliashberg::SolveEliashberg()
                 {
                     //set assymetry
                     _alphaT = _alphaTSample[c];
-                    _alphaM = _alphaTSample[d];
+                    _alphaM = _alphaMSample[d];
 
                     if(_alphaT == 1.0 && _alphaM == 1.0)
                     {
@@ -388,8 +388,8 @@ void Eliashberg::SolveEliashberg()
               
                     //user information
                     std::cout << "Initialising run with parameters" << std::endl;
-                    std::cout << "g: " << _gSquaredChi0tSample[b] << std::endl;
-                    std::cout << "k: " << _kSquaredSample[a] << std::endl;
+                    std::cout << "g: " << _gSquaredChi0tSample[b] << "        " << "k: " << _kSquaredSample[a] << std::endl;
+                    std::cout << "alphaM: " << _alphaMSample[d] << "        " << "alphaT: " << _alphaTSample[c] << std::endl;
 
                     //initialise energy
                     _energy = _Dispersion(qX, qY, qZ);
