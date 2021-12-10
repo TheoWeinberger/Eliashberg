@@ -144,6 +144,11 @@ def Clean_Energy_Data(energy_data, background_data):
     df_e = Clean_Data(energy_data)
     df_e_base = Clean_Data(background_data)
 
+    df_e = df_e.sort_values(by=["Energy"])
+    df_e_base = df_e_base.sort_values(by=["Energy"])
+
+    print(df_e_base)
+    print(df_e)
     #normalise
     df_out = Normalise_E(df_e, df_e_base)
 
@@ -175,6 +180,8 @@ def Clean_Q_Data(q_data, q_norm):
     #normalise
     df_out = Normalise_Q(df_q, q_norm)
 
+    df_out.sort_values(by=["Q"])
+
     return df_out
 
 
@@ -186,14 +193,14 @@ if __name__ == "__main__":
     #want to normalise
 
     #name of input file
-    filename1 = "YFe2Ge2QE35.dat"
-    filename2 = "YFe2Ge2QE35.dat"
+    filename1 = "YFe2Ge2EQ0.dat"
+    filename2 = "YFe2Ge2EQ0_back.dat"
 
     #name of output file
-    fileout = "YFe2Ge2QE35_Clean.dat"
+    fileout = "YFe2Ge2EQ0_Clean.dat"
 
     #whether it's q or e data being cleaned    
-    clean_type = "q"
+    clean_type = "e"
 
     #q value being used as background
     q_norm = 0.3
@@ -210,6 +217,8 @@ if __name__ == "__main__":
 
         print("Invalid value for clean_type. Please choose either q or e.")
 
+    plt.errorbar(df_out["Energy"], df_out["Intensity"], df_out["Error"])
+    plt.show()
 
     df_out.to_csv(fileout)
 

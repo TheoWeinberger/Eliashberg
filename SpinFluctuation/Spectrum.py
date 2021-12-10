@@ -21,10 +21,13 @@
 #--------------------------------------------------------------------------
 
 #import scipy.optimize to use curve_fit for optimsation
+from os import error
 import scipy.optimize as optimize
+import scipy.constants as constants
 #lmfit might be better
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 
 #see
 # https://stackoverflow.com/questions/12208634/fitting-only-one-parameter-of-a-function-with-many-parameters-in-python
@@ -119,7 +122,10 @@ def chi_imag_FM_func(coords, chi_Q_inv, gamma, c, Q):
     freq = coords[:,1]
     q = coords[:,0]
 
-    chi_imag = (freq*q*gamma)/((gamma*q*(chi_Q_inv + c*(q-Q)**2))**2 + freq**2)
+    temp1 = (freq*q*gamma)
+    temp2 = ((gamma*q*(chi_Q_inv + c*(q-Q)**2))**2 + freq**2)
+
+    chi_imag = np.divide(temp1, temp2, out=np.zeros_like(temp1), where=temp2!=0.0)
 
     return chi_imag
 
@@ -154,6 +160,10 @@ def intensity_func(coords, A, chi_Q_inv, gamma, c, Q, mag_model, num_peaks):
         intesity: the neutron intensity
 
     """
+    #enforce positivity
+    chi_Q_inv = [abs(val) for val in chi_Q_inv]
+    gamma = [abs(val) for val in gamma]
+    c = [abs(val) for val in c]
 
     intensity = 0
 
@@ -175,7 +185,7 @@ def intensity_func(coords, A, chi_Q_inv, gamma, c, Q, mag_model, num_peaks):
     return intensity
 
 
-def wrapper_intensity_func(coords, mag_model, num_peaks, *args):
+def wrapper_intensity_func(coords, mag_model, num_peaks, Q, *args):
     """
     A wrapper function to convert the input for the intensity function 
     data from a list of all params in args to a lists for each parameter
@@ -189,6 +199,8 @@ def wrapper_intensity_func(coords, mag_model, num_peaks, *args):
 
         num_peaks: the number of peaks in the system
 
+        Q: the peak positions in Q-space
+
         args: system parameters in single list format
 
     Return:
@@ -198,8 +210,7 @@ def wrapper_intensity_func(coords, mag_model, num_peaks, *args):
     """
     #extract variable parameters
     A = args[0][0]
-    chi_Q_inv, gamma, c, Q = list(args[0][1:num_peaks + 1]), list(args[0][num_peaks + 1: 2*num_peaks + 1]), list(args[0][2*num_peaks + 1: 3*num_peaks + 1]), list(args[0][3*num_peaks + 1: 4*num_peaks + 1])
-
+    chi_Q_inv, gamma, c = list(args[0][1:num_peaks + 1]), list(args[0][num_peaks + 1: 2*num_peaks + 1]), list(args[0][2*num_peaks + 1: 3*num_peaks + 1])
     #calculate intensity
     intensity = intensity_func(coords, A, chi_Q_inv, gamma, c, Q, mag_model, num_peaks)
 
@@ -209,36 +220,69 @@ def wrapper_intensity_func(coords, mag_model, num_peaks, *args):
 #main script
 if __name__ == "__main__":
 
+    #read in data
+    #read in raw data
+    df = pd.read_csv("YFe2Ge2.dat", sep = ",", engine="python")
+
+    #extract input data
+    data = df["Intensity"].to_numpy()
+    errors = df["Error"].to_numpy()
+    #protect against divide by zero
+    errors = np.divide(errors, abs(data), out=np.zeros_like(errors), where=data>=0.1)
+    errors[errors == 0] = np.partition(np.unique(errors),1)[1]
+    
+    q = df["Q"].to_numpy()
+    e = df["Energy"].to_numpy()
+
     #Data params
     num_peaks = 2
     #peak types
-    mag_model = ['FM', 'AFM']
+    mag_model = ['AFM', 'AFM']
+    #peak positions
+    Q = [0.0, 0.5]
 
     #initial params
-    A = [-1.0]
+    A = [-2.0]
     chi_Q_inv = [1.0, 1.0]
-    gamma = [1.0, 1.0]
-    c = [1000.0, 1000.0]
-    Q = [0.25, 0.75]
+    gamma = [6.0, 1.0]
+    c = [100.0, 100.0]
 
     #create parameters list
-    params = A + chi_Q_inv + gamma + c + Q
+    params = A + chi_Q_inv + gamma + c
 
-    q = np.linspace(0, 1, 1000)
-    freq = np.full((1000),1.0)
-
-    coords = np.array([q,freq], dtype=object)
-
+    #reformat coords for fitting
+    coords = np.array([q,e], dtype=object)
     coords = coords.T
 
-    intensity = wrapper_intensity_func(coords, mag_model, num_peaks, params)
+    #fit curve
+    popt, pcov = optimize.curve_fit(lambda coords, *params_init: wrapper_intensity_func(coords, mag_model, num_peaks, Q, params_init), coords, data, p0=params)
 
-    plt.plot(q, intensity)
+    #reformat fitted parameters
+    popt = abs(popt)
+    popt[0] = -popt[0]
 
+    #output parameters
+    print(popt)
+
+    #plot fitted results at on energy value
+    q = np.full((1000),0.0)
+    e = np.linspace(0,10,1000)
+
+    coords = np.array([q,e], dtype=object)
+    coords = coords.T
+    intensity = wrapper_intensity_func(coords, mag_model, num_peaks, Q, popt)
+
+    plt.plot(e, intensity)
+    plt.errorbar(df["Energy"], df["Intensity"], df["Error"])
     plt.show()
 
-    #fit curve
-    #popt, pcov = optimize.curve_fit(lambda x, *params_init: wrapper_intensity_func(coords, mag_model, num_peaks, params_init), coords_in, data, p0=params_init)
+    #fit in just energy space and compare the fits
+
+
+
+
+
+
 
 
 
