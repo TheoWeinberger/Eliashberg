@@ -23,7 +23,6 @@
 #import scipy.optimize to use curve_fit for optimsation
 from os import error
 import scipy.optimize as optimize
-import scipy.constants as constants
 #lmfit might be better
 import numpy as np
 import matplotlib.pyplot as plt
@@ -33,7 +32,7 @@ import pandas as pd
 # https://stackoverflow.com/questions/12208634/fitting-only-one-parameter-of-a-function-with-many-parameters-in-python
 # https://stackoverflow.com/questions/34136737/using-scipy-curve-fit-for-a-variable-number-of-parameters
 
-def omega_func(omega, chi_q_inv, gamma_q):
+def omega_func(omega, A, chi_q_inv, gamma_q, omega_0):
     """
     This function is used to find the variable parameters
     chi_q_inv and gamma_q. It returns chi_imag which is the imaginary part
@@ -49,21 +48,25 @@ def omega_func(omega, chi_q_inv, gamma_q):
 
         omega: the frequency of incident neutrons
 
+        A: normalisation
+
         chi_q_inv: the inverse of the static spin susceptibility
 
         gamma_q: the q-dependent damping
 
+        omega_0: location of frequency peak
+
     Returns:
 
-        chi_imag: the imaginary part of the response function
+        chi_int: the neutron intensity
     """
 
-    chi_imag = -(omega*gamma_q)/((gamma_q*chi_q_inv)**2 + omega**2)
+    chi_int = -A*(omega*gamma_q)/((gamma_q*chi_q_inv)**2 + (omega-omega_0)**2)
 
-    return chi_imag
+    return chi_int
 
 
-def chi_imag_AFM_func(coords, chi_Q_inv, gamma, c, Q):
+def chi_imag_AFM_func(coords, chi_Q_inv, gamma, c, Q, freq_0):
     """
     This function is used to calculate the antiferromagnetic contribution 
     to the imaginary part of the response function
@@ -81,6 +84,8 @@ def chi_imag_AFM_func(coords, chi_Q_inv, gamma, c, Q):
 
         Q: the Q coordinate of the susceptibility peak 
 
+        freq_0: location of frequency peak
+
     Returns:
     
         chi_imag: the imaginary part of the response function
@@ -90,12 +95,12 @@ def chi_imag_AFM_func(coords, chi_Q_inv, gamma, c, Q):
     freq = coords[:,1]
     q = coords[:,0]
 
-    chi_imag = (freq*gamma)/((gamma*(chi_Q_inv + c*(q-Q)**2))**2 + freq**2)
+    chi_imag = (freq*gamma)/((gamma*(chi_Q_inv + c*(q-Q)**2))**2 + (freq - freq_0)**2)
 
     return chi_imag
 
 
-def chi_imag_FM_func(coords, chi_Q_inv, gamma, c, Q):
+def chi_imag_FM_func(coords, chi_Q_inv, gamma, c, Q, freq_0):
     """
     This function is used to calculate the ferromagnetic contribution 
     to the imaginary part of the response function
@@ -113,6 +118,8 @@ def chi_imag_FM_func(coords, chi_Q_inv, gamma, c, Q):
 
         Q: the Q coordinate of the susceptibility peak 
 
+        freq_0: location of frequency peak
+
     Returns:
     
         chi_imag: the imaginary part of the response function
@@ -123,14 +130,14 @@ def chi_imag_FM_func(coords, chi_Q_inv, gamma, c, Q):
     q = coords[:,0]
 
     temp1 = (freq*q*gamma)
-    temp2 = ((gamma*q*(chi_Q_inv + c*(q-Q)**2))**2 + freq**2)
+    temp2 = ((gamma*q*(chi_Q_inv + c*(q-Q)**2))**2 + (freq-freq_0)**2)
 
     chi_imag = np.divide(temp1, temp2, out=np.zeros_like(temp1), where=temp2!=0.0)
 
     return chi_imag
 
 
-def intensity_func(coords, A, chi_Q_inv, gamma, c, Q, mag_model, num_peaks):
+def intensity_func(coords, A, chi_Q_inv, gamma, c, Q, freq_0, mag_model, num_peaks):
     """
     This functions sums over the responses for the individual peaks
     to calculate the overall neutron intensity spectrum as a function 
@@ -150,6 +157,8 @@ def intensity_func(coords, A, chi_Q_inv, gamma, c, Q, mag_model, num_peaks):
         c: the decay factor in the static susceptibility
 
         Q: the Q coordinate of the susceptibility peak 
+
+        freq_0: location of frequency peak
 
         mag_model: the type of magnetism the peak corresponds to
 
@@ -171,11 +180,11 @@ def intensity_func(coords, A, chi_Q_inv, gamma, c, Q, mag_model, num_peaks):
 
         if(mag_model[i] == 'FM'):
 
-            intensity += -A*chi_imag_FM_func(coords, chi_Q_inv[i], gamma[i], c[i], Q[i])
+            intensity += -A*chi_imag_FM_func(coords, chi_Q_inv[i], gamma[i], c[i], Q[i], freq_0[i])
 
         elif(mag_model[i] == 'AFM'):
 
-            intensity += -A*chi_imag_AFM_func(coords, chi_Q_inv[i], gamma[i], c[i], Q[i])
+            intensity += -A*chi_imag_AFM_func(coords, chi_Q_inv[i], gamma[i], c[i], Q[i], freq_0[i])
 
         else:
 
@@ -210,9 +219,10 @@ def wrapper_intensity_func(coords, mag_model, num_peaks, Q, *args):
     """
     #extract variable parameters
     A = args[0][0]
-    chi_Q_inv, gamma, c = list(args[0][1:num_peaks + 1]), list(args[0][num_peaks + 1: 2*num_peaks + 1]), list(args[0][2*num_peaks + 1: 3*num_peaks + 1])
+    chi_Q_inv, gamma, c, freq_0 = list(args[0][1:num_peaks + 1]), list(args[0][num_peaks + 1: 2*num_peaks + 1]), list(args[0][2*num_peaks + 1: 3*num_peaks + 1]), list(args[0][3*num_peaks + 1: 4*num_peaks + 1])
+
     #calculate intensity
-    intensity = intensity_func(coords, A, chi_Q_inv, gamma, c, Q, mag_model, num_peaks)
+    intensity = intensity_func(coords, A, chi_Q_inv, gamma, c, Q, freq_0, mag_model, num_peaks)
 
     return intensity
 
@@ -246,9 +256,10 @@ if __name__ == "__main__":
     chi_Q_inv = [1.0, 1.0]
     gamma = [6.0, 1.0]
     c = [100.0, 100.0]
+    freq_0 = [1.0, 1.0]
 
     #create parameters list
-    params = A + chi_Q_inv + gamma + c
+    params = A + chi_Q_inv + gamma + c + freq_0
 
     #reformat coords for fitting
     coords = np.array([q,e], dtype=object)
@@ -265,19 +276,74 @@ if __name__ == "__main__":
     print(popt)
 
     #plot fitted results at on energy value
-    q = np.full((1000),0.0)
-    e = np.linspace(0,10,1000)
+    e = np.full((1000),6)
+    q = np.linspace(-0.25,0.75,1000)
 
     coords = np.array([q,e], dtype=object)
     coords = coords.T
     intensity = wrapper_intensity_func(coords, mag_model, num_peaks, Q, popt)
 
+    plt.plot(q, intensity)
+    plt.errorbar(df["Q"], df["Intensity"], df["Error"])
+    plt.show()
+
+    """
+    #fit in just energy space and compare the fits
+    #read in data
+    #read in raw data
+    df = pd.read_csv("YFe2Ge2EQ0_Clean.dat", sep = ",", engine="python")
+
+    #extract input data
+    data = df["Intensity"].to_numpy()
+    errors = df["Error"].to_numpy()
+    #protect against divide by zero
+    errors = np.divide(errors, abs(data), out=np.zeros_like(errors), where=data>=0.1)
+    errors[errors == 0] = np.partition(np.unique(errors),1)[1]
+    
+    q = df["Q"].to_numpy()
+    e = df["Energy"].to_numpy()
+
+    #Data params
+    num_peaks = 1
+    #peak types
+    mag_model = ['AFM']
+    #peak positions
+    Q = [0.0]
+
+    #initial params
+    A = [-2.0]
+    chi_q_inv = [1.0]
+    gamma_q = [6.0]
+
+    #create parameters list
+    params = A + chi_q_inv + gamma_q + gamma_q
+
+    #reformat coords for fitting
+    coords = np.array([q,e], dtype=object)
+    coords = coords.T
+
+    #fit curve
+    popt, pcov = optimize.curve_fit(omega_func, coords[:,1], data, p0=params, maxfev = 1000000)
+
+    #reformat fitted parameters
+    popt = abs(popt)
+    popt[0] = -popt[0]
+
+    #output parameters
+    print(popt)
+
+    #plot fitted results at on energy value
+    q = np.full((1000),0.0)
+    e = np.linspace(0,10,1000)
+
+    coords = np.array([q,e], dtype=object)
+    coords = coords.T
+    intensity = omega_func(coords[:,1], *popt)
+
     plt.plot(e, intensity)
     plt.errorbar(df["Energy"], df["Intensity"], df["Error"])
     plt.show()
-
-    #fit in just energy space and compare the fits
-
+    """
 
 
 
