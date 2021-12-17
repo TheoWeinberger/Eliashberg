@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-def Clean_Data(filename):
+def Clean_Data(filename, norm):
     """
     Function to clean the raw data from the ISIS data files
     and reduce it down to the minimal dataset
@@ -20,6 +20,8 @@ def Clean_Data(filename):
 
         filename: string containing the name of the file 
         being cleaned
+
+        norm: The normalisation reference
 
     Return:
 
@@ -49,13 +51,38 @@ def Clean_Data(filename):
     #create the new cleaned dataframe
     df_clean = pd.DataFrame.from_records(df_whole_list)
 
-    #calculate the intensity as counts/second
-    df_clean["Intensity"] =  df_clean[8]/df_clean[7]
-    #and the error as poissonian error
-    df_clean["Error"] = df_clean["Intensity"]/10.0
+    if norm == "time":
+    
+        #calculate the intensity as counts/second
+        df_clean["Intensity"] =  df_clean[8]/df_clean[7]
+        #and the error as poissonian error
+        df_clean["Error"] = np.sqrt(df_clean[8])/df_clean[7]
+    
+    elif norm == "m1":
+        
+        #calculate the intensity as 10,000*counts/m1
+        df_clean["Intensity"] =  10000*df_clean[8]/df_clean[5]
+        #and the error as poissonian error
+        df_clean["Error"] = 10000*np.sqrt(df_clean[8])/df_clean[5]
+
+    elif norm == "m2":
+        
+        #calculate the intensity as counts/m2
+        df_clean["Intensity"] =  df_clean[8]/df_clean[6]
+        #and the error as poissonian error
+        df_clean["Error"] = np.sqrt(df_clean[8])/df_clean[6]
+
+    else:
+
+        print("Invalid value for normalisation type, choose time, m1 or m2")
+        exit(1)
+    
+    
+
+    df_clean["Temp"] = df_clean[9]
 
     #name column names for reduced output
-    column_names = ["Q", "Energy", "Intensity", "Error"]
+    column_names = ["Q", "Energy", "Intensity", "Error", "Temp"]
 
     #create output datafrane
     df_out = pd.DataFrame(columns=column_names)
@@ -65,6 +92,7 @@ def Clean_Data(filename):
     df_out["Energy"] = df_clean[4].round(2)
     df_out["Intensity"] = df_clean["Intensity"]
     df_out["Error"] = df_clean["Error"]
+    df_out["Temp"] = df_clean["Temp"]
 
     return df_out
 
@@ -89,10 +117,17 @@ def Normalise_Q(df_q, q_norm):
     #get normalisation values
     norm_value = df_q_norm[df_q_norm["Q"] == q_norm]["Intensity"]
     error_norm = df_q_norm[df_q_norm["Q"] == q_norm]["Error"]
+    temp_norm = df_q_norm[df_q_norm["Q"] == q_norm]["Temp"]
+    energy_norm = df_q_norm[df_q_norm["Q"] == q_norm]["Energy"]
+
+    boltz = 8.617e-5
+
+    #data must be scaled for this
+    bose_norm = 1.0/(1.0 - np.exp(-(float(energy_norm)*1e-3)/(boltz*float(temp_norm))))
 
     #calculate renormalised values
-    df_q_norm["Intensity"] -=  float(norm_value)
-    df_q_norm["Error"] =  np.sqrt(df_q_norm["Error"]**2 + float(error_norm)**2)
+    df_q_norm["Intensity"] = df_q_norm["Intensity"]/Bose(df_q_norm) - float(norm_value)/bose_norm
+    df_q_norm["Error"] =  np.sqrt((df_q_norm["Error"]/Bose(df_q_norm))**2 + float(error_norm/bose_norm)**2)
 
     return df_q_norm
 
@@ -115,12 +150,12 @@ def Normalise_E(df_e, df_e_base):
     df_e_norm =  df_e
 
     #calculate normed data    
-    df_e_norm["Intensity"] =  df_e["Intensity"] - df_e_base["Intensity"]
-    df_e_norm["Error"] =  np.sqrt(df_e["Error"]**2 + df_e_base["Error"]**2)
+    df_e_norm["Intensity"] =  df_e["Intensity"]/Bose(df_e) - df_e_base["Intensity"]/Bose(df_e_norm)
+    df_e_norm["Error"] =  np.sqrt((df_e["Error"]/Bose(df_e))**2 + (df_e_base["Error"]/Bose(df_e_norm))**2)
 
     return df_e_norm
 
-def Clean_Energy_Data(energy_data, background_data):
+def Clean_Energy_Data(energy_data, background_data, norm):
     """
     Function to clean the raw data from the ISIS data files
     and reduce it down to the minimal dataset for the case 
@@ -141,21 +176,19 @@ def Clean_Energy_Data(energy_data, background_data):
 
     """
     #load in files and clean
-    df_e = Clean_Data(energy_data)
-    df_e_base = Clean_Data(background_data)
+    df_e = Clean_Data(energy_data, norm)
+    df_e_base = Clean_Data(background_data, norm)
 
     df_e = df_e.sort_values(by=["Energy"])
     df_e_base = df_e_base.sort_values(by=["Energy"])
 
-    print(df_e_base)
-    print(df_e)
     #normalise
     df_out = Normalise_E(df_e, df_e_base)
 
     return df_out
 
 
-def Clean_Q_Data(q_data, q_norm):
+def Clean_Q_Data(q_data, q_norm, norm):
     """
     Function to clean the raw data from the ISIS data files
     and reduce it down to the minimal dataset for the case 
@@ -169,6 +202,8 @@ def Clean_Q_Data(q_data, q_norm):
         q_norm: the q value being used as the background 
         reading
 
+        norm: The normalisation reference
+
     Return:
 
         df_out: a dataframe containing the cleaned and normalised
@@ -176,13 +211,35 @@ def Clean_Q_Data(q_data, q_norm):
 
     """
     #load in files and clean
-    df_q = Clean_Data(q_data)
+    df_q = Clean_Data(q_data, norm)
     #normalise
     df_out = Normalise_Q(df_q, q_norm)
 
     df_out.sort_values(by=["Q"])
 
     return df_out
+
+
+def Bose(data):
+    """
+    Calculate the bose function for emission for 
+    a data frame
+
+    Args:
+
+        data: a dataframe containing scattering data
+
+    Return
+
+        bose: bose factors
+    """
+
+    boltz = 8.617e-5
+
+    #data must be scaled for this
+    bose = 1.0/(1.0 - np.exp(-(data["Energy"]*1e-3)/(boltz*data["Temp"])))
+
+    return bose
 
 
 
@@ -193,32 +250,39 @@ if __name__ == "__main__":
     #want to normalise
 
     #name of input file
-    filename1 = "YFe2Ge2EQ0.dat"
-    filename2 = "YFe2Ge2EQ0_back.dat"
+    filename1 = "YFe2Ge2EQ0_5.dat"
+    filename2 = "YFe2Ge2EQ0_5_back.dat"
 
     #name of output file
-    fileout = "YFe2Ge2EQ0_Clean.dat"
+    fileout = "YFe2Ge2EQ0_5_Clean.dat"
 
     #whether it's q or e data being cleaned    
     clean_type = "e"
+
+    #Normalisation type, time, m1 or m2
+    norm = "m2"
 
     #q value being used as background
     q_norm = 0.3
 
     if clean_type == "q":
 
-        df_out = Clean_Q_Data(filename1, q_norm)
+        df_out = Clean_Q_Data(filename1, q_norm, norm)
+
+        plt.errorbar(df_out["Q"], df_out["Intensity"], df_out["Error"])
+        plt.show()
 
     elif clean_type == "e":
 
-        df_out = Clean_Energy_Data(filename1, filename2)
+        df_out = Clean_Energy_Data(filename1, filename2, norm)
+
+        plt.errorbar(df_out["Energy"], df_out["Intensity"], df_out["Error"])
+        plt.show()
 
     else:
 
         print("Invalid value for clean_type. Please choose either q or e.")
 
-    plt.errorbar(df_out["Energy"], df_out["Intensity"], df_out["Error"])
-    plt.show()
 
     df_out.to_csv(fileout)
 

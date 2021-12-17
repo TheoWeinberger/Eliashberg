@@ -66,7 +66,7 @@ def omega_func(omega, A, chi_q_inv, gamma_q, omega_0):
     return chi_int
 
 
-def chi_imag_AFM_func(coords, chi_Q_inv, gamma, c, Q, freq_0):
+def chi_imag_AFM_func(coords, chi_Q_inv, gamma, c, Q):
     """
     This function is used to calculate the antiferromagnetic contribution 
     to the imaginary part of the response function
@@ -84,8 +84,6 @@ def chi_imag_AFM_func(coords, chi_Q_inv, gamma, c, Q, freq_0):
 
         Q: the Q coordinate of the susceptibility peak 
 
-        freq_0: location of frequency peak
-
     Returns:
     
         chi_imag: the imaginary part of the response function
@@ -95,12 +93,12 @@ def chi_imag_AFM_func(coords, chi_Q_inv, gamma, c, Q, freq_0):
     freq = coords[:,1]
     q = coords[:,0]
 
-    chi_imag = (freq*gamma)/((gamma*(chi_Q_inv + c*(q-Q)**2))**2 + (freq - freq_0)**2)
+    chi_imag = (freq*gamma)/((gamma*(chi_Q_inv + c*(q-Q)**2))**2 + (freq)**2)
 
     return chi_imag
 
 
-def chi_imag_FM_func(coords, chi_Q_inv, gamma, c, Q, freq_0):
+def chi_imag_FM_func(coords, chi_Q_inv, gamma, c, Q):
     """
     This function is used to calculate the ferromagnetic contribution 
     to the imaginary part of the response function
@@ -118,8 +116,6 @@ def chi_imag_FM_func(coords, chi_Q_inv, gamma, c, Q, freq_0):
 
         Q: the Q coordinate of the susceptibility peak 
 
-        freq_0: location of frequency peak
-
     Returns:
     
         chi_imag: the imaginary part of the response function
@@ -130,14 +126,14 @@ def chi_imag_FM_func(coords, chi_Q_inv, gamma, c, Q, freq_0):
     q = coords[:,0]
 
     temp1 = (freq*q*gamma)
-    temp2 = ((gamma*q*(chi_Q_inv + c*(q-Q)**2))**2 + (freq-freq_0)**2)
+    temp2 = ((gamma*q*(chi_Q_inv + c*(q-Q)**2))**2 + (freq)**2)
 
     chi_imag = np.divide(temp1, temp2, out=np.zeros_like(temp1), where=temp2!=0.0)
 
     return chi_imag
 
 
-def intensity_func(coords, A, chi_Q_inv, gamma, c, Q, freq_0, mag_model, num_peaks):
+def intensity_func(coords, A, chi_Q_inv, gamma, c, Q, mag_model, num_peaks):
     """
     This functions sums over the responses for the individual peaks
     to calculate the overall neutron intensity spectrum as a function 
@@ -157,8 +153,6 @@ def intensity_func(coords, A, chi_Q_inv, gamma, c, Q, freq_0, mag_model, num_pea
         c: the decay factor in the static susceptibility
 
         Q: the Q coordinate of the susceptibility peak 
-
-        freq_0: location of frequency peak
 
         mag_model: the type of magnetism the peak corresponds to
 
@@ -180,11 +174,11 @@ def intensity_func(coords, A, chi_Q_inv, gamma, c, Q, freq_0, mag_model, num_pea
 
         if(mag_model[i] == 'FM'):
 
-            intensity += -A*chi_imag_FM_func(coords, chi_Q_inv[i], gamma[i], c[i], Q[i], freq_0[i])
+            intensity += -A*chi_imag_FM_func(coords, chi_Q_inv[i], gamma[i], c[i], Q[i])
 
         elif(mag_model[i] == 'AFM'):
 
-            intensity += -A*chi_imag_AFM_func(coords, chi_Q_inv[i], gamma[i], c[i], Q[i], freq_0[i])
+            intensity += -A*chi_imag_AFM_func(coords, chi_Q_inv[i], gamma[i], c[i], Q[i])
 
         else:
 
@@ -219,10 +213,10 @@ def wrapper_intensity_func(coords, mag_model, num_peaks, Q, *args):
     """
     #extract variable parameters
     A = args[0][0]
-    chi_Q_inv, gamma, c, freq_0 = list(args[0][1:num_peaks + 1]), list(args[0][num_peaks + 1: 2*num_peaks + 1]), list(args[0][2*num_peaks + 1: 3*num_peaks + 1]), list(args[0][3*num_peaks + 1: 4*num_peaks + 1])
+    chi_Q_inv, gamma, c = list(args[0][1:num_peaks + 1]), list(args[0][num_peaks + 1: 2*num_peaks + 1]), list(args[0][2*num_peaks + 1: 3*num_peaks + 1])
 
     #calculate intensity
-    intensity = intensity_func(coords, A, chi_Q_inv, gamma, c, Q, freq_0, mag_model, num_peaks)
+    intensity = intensity_func(coords, A, chi_Q_inv, gamma, c, Q, mag_model, num_peaks)
 
     return intensity
 
@@ -256,17 +250,16 @@ if __name__ == "__main__":
     chi_Q_inv = [1.0, 1.0]
     gamma = [6.0, 1.0]
     c = [100.0, 100.0]
-    freq_0 = [1.0, 1.0]
 
     #create parameters list
-    params = A + chi_Q_inv + gamma + c + freq_0
+    params = A + chi_Q_inv + gamma + c 
 
     #reformat coords for fitting
     coords = np.array([q,e], dtype=object)
     coords = coords.T
 
     #fit curve
-    popt, pcov = optimize.curve_fit(lambda coords, *params_init: wrapper_intensity_func(coords, mag_model, num_peaks, Q, params_init), coords, data, p0=params)
+    popt, pcov = optimize.curve_fit(lambda coords, *params_init: wrapper_intensity_func(coords, mag_model, num_peaks, Q, params_init), coords, data, p0=params, sigma=errors)
 
     #reformat fitted parameters
     popt = abs(popt)
@@ -285,6 +278,18 @@ if __name__ == "__main__":
 
     plt.plot(q, intensity)
     plt.errorbar(df["Q"], df["Intensity"], df["Error"])
+    plt.show()
+
+    #plot fitted results at on q value
+    q = np.full((1000),0.0)
+    e = np.linspace(0,16,1000)
+
+    coords = np.array([q,e], dtype=object)
+    coords = coords.T
+    intensity = wrapper_intensity_func(coords, mag_model, num_peaks, Q, popt)
+
+    plt.plot(e, intensity)
+    plt.errorbar(df["Energy"], df["Intensity"], df["Error"])
     plt.show()
 
     """
