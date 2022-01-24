@@ -93,7 +93,7 @@ def chi_imag_AFM_func(coords, chi_Q_inv, gamma, c, Q):
     freq = coords[:,1]
     q = coords[:,0]
 
-    chi_imag = (freq*gamma)/((gamma*(chi_Q_inv + c*(q-Q)**2))**2 + (freq)**2)
+    chi_imag = (freq*gamma)/((gamma + (freq)**2)*((chi_Q_inv + c*(q-Q)**2)**2))
 
     return chi_imag
 
@@ -126,7 +126,7 @@ def chi_imag_FM_func(coords, chi_Q_inv, gamma, c, Q):
     q = coords[:,0]
 
     temp1 = (freq*q*gamma)
-    temp2 = ((gamma*q*(chi_Q_inv + c*(q-Q)**2))**2 + (freq)**2)
+    temp2 = (gamma*q + (freq)**2)*((chi_Q_inv + c*(q-Q)**2)**2)
 
     chi_imag = np.divide(temp1, temp2, out=np.zeros_like(temp1), where=temp2!=0.0)
 
@@ -226,7 +226,7 @@ if __name__ == "__main__":
 
     #read in data
     #read in raw data
-    df = pd.read_csv("YFe2Ge2.dat", sep = ",", engine="python")
+    df = pd.read_csv("data/YFe2Ge2.dat", sep = ",", engine="python")
 
     #extract input data
     data = df["Intensity"].to_numpy()
@@ -237,6 +237,10 @@ if __name__ == "__main__":
     
     q = df["Q"].to_numpy()
     e = df["Energy"].to_numpy()
+
+    #temp_data = np.genfromtxt('out_data.csv', delimiter=',')
+
+    #print(temp_data)
 
     #Data params
     num_peaks = 2
@@ -258,6 +262,9 @@ if __name__ == "__main__":
     coords = np.array([q,e], dtype=object)
     coords = coords.T
 
+    #coords = temp_data[:,0:2]
+    #data = temp_data[:,2]
+
     #fit curve
     popt, pcov = optimize.curve_fit(lambda coords, *params_init: wrapper_intensity_func(coords, mag_model, num_peaks, Q, params_init), coords, data, p0=params, sigma=errors)
 
@@ -269,15 +276,32 @@ if __name__ == "__main__":
     print(popt)
 
     #plot fitted results at on energy value
-    e = np.full((1000),6)
+    e = np.full((1000),16)
     q = np.linspace(-0.25,0.75,1000)
 
-    coords = np.array([q,e], dtype=object)
-    coords = coords.T
-    intensity = wrapper_intensity_func(coords, mag_model, num_peaks, Q, popt)
+    #read in data for plotting
+    #read in raw data
+    df = pd.read_csv("data/YFe2Ge2QE7_Clean.dat", sep = ",", engine="python")
 
-    plt.plot(q, intensity)
-    plt.errorbar(df["Q"], df["Intensity"], df["Error"])
+    #extract input data
+    data_plot = df["Intensity"].to_numpy()
+    errors_plot = df["Error"].to_numpy()
+    #protect against divide by zero
+    #errors_plot = np.divide(errors_plot, abs(data), out=np.zeros_like(errors_plot), where=data>=0.1)
+    #errors_plot[errors_plot == 0] = np.partition(np.unique(errors_plot),1)[1]
+    
+    q_plot = df["Q"].to_numpy()
+    e_plot = df["Energy"].to_numpy()
+
+    coords_plot = np.array([q,e], dtype=object)
+    coords_plot = coords_plot.T
+    intensity_plot = wrapper_intensity_func(coords_plot, mag_model, num_peaks, Q, popt)
+
+    plt.plot(q, intensity_plot, label="Fit")
+    plt.errorbar(df["Q"], df["Intensity"], df["Error"], label="Data")
+    plt.legend()
+    plt.xlabel("Energy/meV")
+    plt.ylabel("Normalised Counts")
     plt.show()
 
     #plot fitted results at on q value
@@ -291,6 +315,41 @@ if __name__ == "__main__":
     plt.plot(e, intensity)
     plt.errorbar(df["Energy"], df["Intensity"], df["Error"])
     plt.show()
+
+    #contour plot
+    q = np.linspace(-0.25,0.75,1000)
+    e = np.linspace(0,16,1000)
+
+    qq, ee = np.meshgrid(q,e)
+
+    qf = qq.flatten()
+    ef = ee.flatten()
+
+    coords = np.array([qf,ef], dtype=object)
+    coords = coords.T
+
+    int_f = wrapper_intensity_func(coords, mag_model, num_peaks, Q, popt)
+
+    ii = int_f.reshape(np.shape(qq))
+
+    plt.contourf(qq, ee, ii)
+    plt.ylabel("Energy/meV")
+    plt.xlabel("hh3/r.l.u")
+    plt.show()
+
+    """
+    X = temp_data[:, 0]
+    Y = temp_data[:, 1]
+    Z = temp_data[:, 2]
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot_trisurf(X, Y, Z, color='white', edgecolors='grey', alpha=0.5)
+    ax.scatter(X, Y, Z, c='red')
+    plt.show()
+    """
+
+
 
     """
     #fit in just energy space and compare the fits

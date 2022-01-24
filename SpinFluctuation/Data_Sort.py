@@ -250,11 +250,11 @@ if __name__ == "__main__":
     #want to normalise
 
     #name of input file
-    filename1 = "YFe2Ge2EQ0_5.dat"
-    filename2 = "YFe2Ge2EQ0_5_back.dat"
+    filename1 = "data/YFe2Ge2EQ0_5.dat"
+    filename2 = "data/YFe2Ge2EQ0_5_back.dat"
 
     #name of output file
-    fileout = "YFe2Ge2EQ0_5_Clean.dat"
+    fileout = "data/YFe2Ge2EQ0_5_Clean.dat"
 
     #whether it's q or e data being cleaned    
     clean_type = "e"
@@ -270,6 +270,8 @@ if __name__ == "__main__":
         df_out = Clean_Q_Data(filename1, q_norm, norm)
 
         plt.errorbar(df_out["Q"], df_out["Intensity"], df_out["Error"])
+        plt.xlabel("r.l.u.")
+        plt.ylabel("Normalised Counts")
         plt.show()
 
     elif clean_type == "e":
@@ -277,6 +279,8 @@ if __name__ == "__main__":
         df_out = Clean_Energy_Data(filename1, filename2, norm)
 
         plt.errorbar(df_out["Energy"], df_out["Intensity"], df_out["Error"])
+        plt.xlabel("Energy/meV")
+        plt.ylabel("Normalised Counts")
         plt.show()
 
     else:
