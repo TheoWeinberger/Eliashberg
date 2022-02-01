@@ -8,8 +8,11 @@
 
 from os import error
 import numpy as np
+from scipy import stats
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib import rc
+from matplotlib import rcParams
 
 def Clean_Data(filename, norm):
     """
@@ -82,13 +85,15 @@ def Clean_Data(filename, norm):
     df_clean["Temp"] = df_clean[9]
 
     #name column names for reduced output
-    column_names = ["Q", "Energy", "Intensity", "Error", "Temp"]
+    column_names = ["Q1", "Q2", "Q3", "Energy", "Intensity", "Error", "Temp"]
 
     #create output datafrane
     df_out = pd.DataFrame(columns=column_names)
 
     ##assign new columns with data rounded
-    df_out["Q"] = df_clean[1].round(2)
+    df_out["Q1"] = df_clean[1].round(2)
+    df_out["Q2"] = df_clean[2].round(2)
+    df_out["Q3"] = df_clean[3].round(2)
     df_out["Energy"] = df_clean[4].round(2)
     df_out["Intensity"] = df_clean["Intensity"]
     df_out["Error"] = df_clean["Error"]
@@ -150,12 +155,12 @@ def Normalise_E(df_e, df_e_base):
     df_e_norm =  df_e
 
     #calculate normed data    
-    df_e_norm["Intensity"] =  df_e["Intensity"]/Bose(df_e) - df_e_base["Intensity"]/Bose(df_e_norm)
+    df_e_norm["Intensity"] =  df_e["Intensity"] - df_e_base["Intensity"]
     df_e_norm["Error"] =  np.sqrt((df_e["Error"]/Bose(df_e))**2 + (df_e_base["Error"]/Bose(df_e_norm))**2)
 
     return df_e_norm
 
-def Clean_Energy_Data(energy_data, background_data, norm):
+def Clean_Energy_Data(energy_data, background_data, norm, threshold):
     """
     Function to clean the raw data from the ISIS data files
     and reduce it down to the minimal dataset for the case 
@@ -179,11 +184,50 @@ def Clean_Energy_Data(energy_data, background_data, norm):
     df_e = Clean_Data(energy_data, norm)
     df_e_base = Clean_Data(background_data, norm)
 
+
     df_e = df_e.sort_values(by=["Energy"])
     df_e_base = df_e_base.sort_values(by=["Energy"])
 
+    #apply bose corrections
+    df_e["Intensity"] = df_e["Intensity"]/Bose(df_e)
+    df_e_base["Intensity"] = df_e_base["Intensity"]/Bose(df_e_base)
+
+    df_e["Error"] = df_e["Error"]/Bose(df_e)
+    df_e_base["Error"] = df_e_base["Error"]/Bose(df_e_base)
+
+    #crop data to 2meV and above
+    df_e = df_e.drop(df_e[df_e["Energy"] < threshold].index)
+    df_e_base = df_e_base.drop(df_e_base[df_e_base["Energy"] < threshold].index)
+
+    #linear fitting to background data 
+    energy = df_e_base["Energy"]
+    counts = df_e_base["Intensity"]
+    slope, intercept, r_value, p_value, std_err = stats.linregress(energy, counts)
+
+    df_e_base_fit = df_e.copy()
+
+    fit_values = df_e["Energy"]*slope + intercept
+
+    df_e_base_fit["Intensity"] = fit_values
+
+    #plot raw data and subsequent fittings
+
+    plt.errorbar(df_e["Energy"], df_e["Intensity"], df_e["Error"], ls='none', marker='x', color='black', capsize=2)
+    plt.errorbar(df_e_base["Energy"], df_e_base["Intensity"], df_e_base["Error"], ls='none', marker='+', color='black', capsize=2)
+    plt.plot(df_e_base_fit["Energy"], df_e_base_fit["Intensity"], color='black', linestyle='--')
+    plt.xlabel("Energy/meV")
+    plt.ylabel("Normalised Counts")
+    plt.grid(linestyle='--', linewidth='0.5', color='gray')
+    plt.show()
+
+
+
+    #match data points in df_e to df_e_base
+
     #normalise
-    df_out = Normalise_E(df_e, df_e_base)
+    df_out = Normalise_E(df_e, df_e_base_fit)
+
+
 
     return df_out
 
@@ -250,17 +294,17 @@ if __name__ == "__main__":
     #want to normalise
 
     #name of input file
-    filename1 = "data/YFe2Ge2EQ0_5.dat"
-    filename2 = "data/YFe2Ge2EQ0_5_back.dat"
+    filename1 = "data/YFe2Ge2EQ_0_raw.dat"
+    filename2 = "data/YFe2Ge2E_back.dat"
 
     #name of output file
-    fileout = "data/YFe2Ge2EQ0_5_Clean.dat"
+    fileout = "data/YFe2Ge2EQ0_clean_time.dat"
 
     #whether it's q or e data being cleaned    
     clean_type = "e"
 
     #Normalisation type, time, m1 or m2
-    norm = "m2"
+    norm = "time"
 
     #q value being used as background
     q_norm = 0.3
@@ -269,18 +313,20 @@ if __name__ == "__main__":
 
         df_out = Clean_Q_Data(filename1, q_norm, norm)
 
-        plt.errorbar(df_out["Q"], df_out["Intensity"], df_out["Error"])
+        plt.errorbar(df_out["Q"], df_out["Intensity"], df_out["Error"], ls='none', marker='+', color='black', capsize=2)
         plt.xlabel("r.l.u.")
         plt.ylabel("Normalised Counts")
+        plt.grid(linestyle='--', linewidth='0.5', color='gray')
         plt.show()
 
     elif clean_type == "e":
 
-        df_out = Clean_Energy_Data(filename1, filename2, norm)
+        df_out = Clean_Energy_Data(filename1, filename2, norm, 1)
 
-        plt.errorbar(df_out["Energy"], df_out["Intensity"], df_out["Error"])
+        plt.errorbar(df_out["Energy"], df_out["Intensity"], df_out["Error"], ls='none', marker='+', color='black', capsize=2)
         plt.xlabel("Energy/meV")
         plt.ylabel("Normalised Counts")
+        plt.grid(linestyle='--', linewidth='0.5', color='gray')
         plt.show()
 
     else:
