@@ -99,6 +99,10 @@ def Clean_Data(filename, norm):
     df_out["Error"] = df_clean["Error"]
     df_out["Temp"] = df_clean["Temp"]
 
+
+    #remove 1/q^2 dependence
+    #df_out["Intensity"] = df_out["Intensity"]*np.sqrt(df_out["Q1"]**2 + df_out["Q2"]**2 + df_out["Q3"]**2)
+
     return df_out
 
 
@@ -120,10 +124,10 @@ def Normalise_Q(df_q, q_norm):
     df_q_norm = df_q
 
     #get normalisation values
-    norm_value = df_q_norm[df_q_norm["Q"] == q_norm]["Intensity"]
-    error_norm = df_q_norm[df_q_norm["Q"] == q_norm]["Error"]
-    temp_norm = df_q_norm[df_q_norm["Q"] == q_norm]["Temp"]
-    energy_norm = df_q_norm[df_q_norm["Q"] == q_norm]["Energy"]
+    norm_value = df_q_norm[df_q_norm["Q3"] == q_norm]["Intensity"]
+    error_norm = df_q_norm[df_q_norm["Q3"] == q_norm]["Error"]
+    temp_norm = df_q_norm[df_q_norm["Q3"] == q_norm]["Temp"]
+    energy_norm = df_q_norm[df_q_norm["Q3"] == q_norm]["Energy"]
 
     boltz = 8.617e-5
 
@@ -192,6 +196,11 @@ def Clean_Energy_Data(energy_data, background_data, norm, threshold):
     df_e["Intensity"] = df_e["Intensity"]/Bose(df_e)
     df_e_base["Intensity"] = df_e_base["Intensity"]/Bose(df_e_base)
 
+    #apply q scaling to normalisation data
+    scaling = (df_e_base["Q1"]**2 + df_e_base["Q2"]**2 + df_e_base["Q3"]**2)/(df_e["Q1"]**2 + df_e["Q2"]**2 + df_e["Q3"]**2)
+
+    df_e_base["Intensity"] = df_e_base["Intensity"]*scaling
+
     df_e["Error"] = df_e["Error"]/Bose(df_e)
     df_e_base["Error"] = df_e_base["Error"]/Bose(df_e_base)
 
@@ -259,7 +268,7 @@ def Clean_Q_Data(q_data, q_norm, norm):
     #normalise
     df_out = Normalise_Q(df_q, q_norm)
 
-    df_out.sort_values(by=["Q"])
+    df_out.sort_values(by=["Q3"])
 
     return df_out
 
@@ -294,26 +303,26 @@ if __name__ == "__main__":
     #want to normalise
 
     #name of input file
-    filename1 = "data/YFe2Ge2EQ_0_raw.dat"
+    filename1 = "data/YFe2Ge2L1E_6.dat"
     filename2 = "data/YFe2Ge2E_back.dat"
 
     #name of output file
-    fileout = "data/YFe2Ge2EQ0_clean_time.dat"
+    fileout = "data/YFe2Ge2L1E_6_clean_m1.dat"
 
     #whether it's q or e data being cleaned    
-    clean_type = "e"
+    clean_type = "q"
 
     #Normalisation type, time, m1 or m2
-    norm = "time"
+    norm = "m1"
 
     #q value being used as background
-    q_norm = 0.3
+    q_norm = 0.5
 
     if clean_type == "q":
 
         df_out = Clean_Q_Data(filename1, q_norm, norm)
 
-        plt.errorbar(df_out["Q"], df_out["Intensity"], df_out["Error"], ls='none', marker='+', color='black', capsize=2)
+        plt.errorbar(df_out["Q3"], df_out["Intensity"], df_out["Error"], ls='none', marker='+', color='black', capsize=2)
         plt.xlabel("r.l.u.")
         plt.ylabel("Normalised Counts")
         plt.grid(linestyle='--', linewidth='0.5', color='gray')

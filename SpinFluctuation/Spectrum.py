@@ -100,6 +100,7 @@ def omega_func_damped_harmonic(omega, A, chi_q_inv, gamma_q, omega_0):
     omega_0 = abs(omega_0)
 
     chi_int = A*(omega*gamma_q)/(((gamma_q*chi_q_inv)**2)*(omega**2 - omega_0**2)**2 + (omega)**2)
+    #chi_int = A*(omega*gamma_q)/((gamma_q*chi_q_inv)**2 + (omega - omega_0)**2)
 
     return chi_int
 
@@ -197,6 +198,7 @@ def intensity_func(coords, A, chi_Q_inv, gamma, c, Q, mag_model, num_peaks):
     chi_Q_inv = [abs(val) for val in chi_Q_inv]
     gamma = [abs(val) for val in gamma]
     c = [abs(val) for val in c]
+    A = abs(A)
 
     intensity = 0
 
@@ -204,11 +206,11 @@ def intensity_func(coords, A, chi_Q_inv, gamma, c, Q, mag_model, num_peaks):
 
         if(mag_model[i] == 'FM'):
 
-            intensity += -A*chi_imag_FM_func(coords, chi_Q_inv[i], gamma[i], c[i], Q[i])
+            intensity += A*chi_imag_FM_func(coords, chi_Q_inv[i], gamma[i], c[i], Q[i])
 
         elif(mag_model[i] == 'AFM'):
 
-            intensity += -A*chi_imag_AFM_func(coords, chi_Q_inv[i], gamma[i], c[i], Q[i])
+            intensity += A*chi_imag_AFM_func(coords, chi_Q_inv[i], gamma[i], c[i], Q[i])
 
         else:
 
@@ -278,7 +280,7 @@ if __name__ == "__main__":
 
     #read in raw data
 
-    df = pd.read_csv("data/YFe2Ge2EQ0_clean_m2.dat", sep = ",", engine="python")
+    df = pd.read_csv("data/YFe2Ge2EQ0_5_clean_m1.dat", sep = ",", engine="python")
 
     if fit_type == "energy":
 
@@ -299,10 +301,10 @@ if __name__ == "__main__":
         omega_0 = [1.0]
 
         #combine parameters
-        params = A + chi_q_inv + gamma_q# + omega_0
+        params = A + chi_q_inv + gamma_q + omega_0
 
         #fit data
-        popt, pcov = optimize.curve_fit(omega_func, e, data, p0=params, sigma=errors, maxfev=10000)
+        popt, pcov = optimize.curve_fit(omega_func_damped_harmonic, e, data, p0=params, sigma=errors, maxfev=10000)
 
         #plot fit
         e_linspace = np.linspace(1, 16, 1000)
@@ -310,10 +312,9 @@ if __name__ == "__main__":
         #make all values
         popt = [abs(val) for val in popt]
 
-        intensity_fit = omega_func(e_linspace, popt[0], popt[1], popt[2])
+        intensity_fit = omega_func_damped_harmonic(e_linspace, popt[0], popt[1], popt[2], popt[3])
 
         print(popt)
-
 
         #plot datta
         plt.xlabel("Energy/meV")
