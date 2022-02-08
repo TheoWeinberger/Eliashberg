@@ -1,3 +1,11 @@
+#--------------------------------------------------------------------------
+# Colour_To_Array.py - Python script to convert coloured 2D intensity data
+# to a numerical intensity map
+#
+# version: 1
+# date: 01/12/2022
+# author: Theo Weinberger
+#--------------------------------------------------------------------------
 from contextvars import copy_context
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
