@@ -60,25 +60,35 @@
  * 
  */
 
+#ifndef ELIASHBERG2D_H
+#define ELIASHBERG2D_H
+
 //calls for arma to make it faster
 #define ARMA_NO_DEBUG
+#define ARMA_USE_MKL_ALLOC
+#define ARMA_BLAS_LONG
+#define ARMA_BLAS_LONG_LONG
+#define ARMA_DONT_USE_FORTRAN_HIDDEN_ARGS
+#define ARMA_USE_LAPACK
+#define ARMA_USE_BLAS
+#define ARMA_USE_MKL_TYPES
+#define ARMA_ALLOW_FAKE_GCC
+#define ARMA_USE_WRAPPER
+
 
 #include <iostream>
-#include <armadillo>
-#include <cmath>
 #include <complex.h>
-#include <fftw3.h>
+#include <math.h>
+#include <fftw/fftw3.h>
+#include <fftw/fftw3_mkl.h>
+#include <armadillo>
 #include <libconfig.h>
 #include <gsl/gsl_roots.h>
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_errno.h>
 #include <stdio.h>
-#include <math.h>
 #include <libalglib/interpolation.h>
-
-#ifndef ELIASHBERG2D_H
-#define ELIASHBERG2D_H
-
+#include <mkl.h>
 
 /**
  * @brief A class object that is used to solve the Eliashberg equations for given 

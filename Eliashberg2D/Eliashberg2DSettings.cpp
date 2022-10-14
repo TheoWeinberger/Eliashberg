@@ -329,7 +329,7 @@ int ReadFile(const std::string& fileName, double& t, double& ratioTight, double&
     try
     {
         //get convergence control parameters
-        plot = root["output"]["g"].c_str();
+        plot = root["output"]["plot"].c_str();
     }
   	catch(const libconfig::ParseException &pex)
 	{

@@ -65,7 +65,7 @@
 #include "Eliashberg2DSettings.hpp"
 
 /**
- * @brief 
+ * @brief Main function to call the Eliashberg class and settings
  * 
  * @param argc The number of arguments supplied to the Eliashberg function. This should be 1 as only one configuratations file should be supplied
  * @param argv The arguments supplied to the Eliashberg function, this should be the name of the configurations file
